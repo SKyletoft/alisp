@@ -1,5 +1,4 @@
-use std::collections::VecDeque;
-use std::fmt;
+use std::{collections::VecDeque, fmt};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum LispObject {
@@ -52,9 +51,9 @@ impl From<(LispObject, LispObject)> for LispObject {
 impl<T: Into<LispObject>> From<Vec<T>> for LispObject {
 	fn from(v: Vec<T>) -> Self {
 		let nil = LispObject::Atom("nil".to_string());
-		v.into_iter()
-			.map(Into::into)
-			.rfold(nil, |acc, obj| LispObject::Pair(Box::new(obj), Box::new(acc)))
+		v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
+			LispObject::Pair(Box::new(obj), Box::new(acc))
+		})
 	}
 }
 
@@ -131,8 +130,8 @@ fn write_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispObject) -> fmt::Result {
 impl<T: Into<LispObject>> From<VecDeque<T>> for LispObject {
 	fn from(v: VecDeque<T>) -> Self {
 		let nil = LispObject::Atom("nil".to_string());
-		v.into_iter()
-			.map(Into::into)
-			.rfold(nil, |acc, obj| LispObject::Pair(Box::new(obj), Box::new(acc)))
+		v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
+			LispObject::Pair(Box::new(obj), Box::new(acc))
+		})
 	}
 }
