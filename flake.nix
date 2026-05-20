@@ -15,7 +15,7 @@
 					inherit system;
 					overlays = [( import rust-overlay )];
 				};
-				rustToolchain = pkgs.rust-bin.stable.latest.default;
+				rustToolchain = pkgs.rust-bin.nightly.latest.default;
 				nativeBuildInputs = with pkgs; [
 					rustToolchain
 					cargo-expand

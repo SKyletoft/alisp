@@ -1,3 +1,5 @@
+#![feature(deref_patterns)]
+
 
 mod lisp_object;
 mod parse;
