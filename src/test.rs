@@ -1,0 +1,113 @@
+use crate::LispObject;
+
+#[test]
+fn hi() {
+	assert_eq!(1, 1);
+}
+
+#[test]
+fn add() {
+	let code = "(+ 1 2)";
+	let expected = 3.into();
+	let result = crate::eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn fib() {
+	fn rust_fib(i: i32) -> i32 {
+		match i {
+			..=1 => 1,
+			i => rust_fib(i - 1) + rust_fib(i - 2),
+		}
+	}
+	let code = r#"
+(defn fib [(i i32)]
+      (cond ((<= i 1) 1)
+	    (t (+ (fib (- i 1))
+		  (fib (- i 2))))))
+"#;
+	let expected = 3.into();
+	let result = crate::eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn hello_world() {
+	let code = "(print \"Hello world\")";
+}
+
+fn check_list(list: &LispObject, expected: &[i32]) {
+	use crate::LispObject::*;
+	match (list, expected) {
+		(Atom(s), []) if s == "nil" => {}
+		(Pair(Integer(n), cdr), [first, rest @ ..]) if n == first => {
+			check_list(cdr, rest);
+		}
+		_ => panic!("expected Pair"),
+	}
+}
+
+#[test]
+fn vec_to_list() {
+	let list: LispObject = vec![1, 2, 3].into();
+	check_list(&list, &[1, 2, 3]);
+}
+
+#[test]
+fn vec_deque_to_list() {
+	use std::collections::VecDeque;
+	let mut v = VecDeque::new();
+	v.push_back(1);
+	v.push_back(2);
+	v.push_back(3);
+	let list: LispObject = v.into();
+	check_list(&list, &[1, 2, 3]);
+}
+
+#[test]
+fn empty_vec_to_nil() {
+	let list: LispObject = Vec::<i32>::new().into();
+	assert!(matches!(list, LispObject::Atom(s) if s == "nil"));
+}
+
+#[test]
+fn empty_vec_deque_to_nil() {
+	use std::collections::VecDeque;
+	let list: LispObject = VecDeque::<i32>::new().into();
+	assert!(matches!(list, LispObject::Atom(s) if s == "nil"));
+}
+
+#[test]
+fn display_atom() {
+	assert_eq!(format!("{}", LispObject::Atom("hello".into())), "hello");
+}
+
+#[test]
+fn display_integer() {
+	assert_eq!(format!("{}", LispObject::Integer(42)), "42");
+}
+
+#[test]
+fn display_float() {
+	assert_eq!(format!("{}", LispObject::Float(3.14)), "3.14");
+}
+
+#[test]
+fn display_proper_list() {
+	let list: LispObject = vec![1, 2, 3].into();
+	assert_eq!(format!("{list}"), "(1 2 3)");
+}
+
+#[test]
+fn display_improper_list() {
+	use crate::LispObject::*;
+	let list = Pair(Box::new(Integer(1)), Box::new(Integer(2)));
+	assert_eq!(format!("{list}"), "(1 . 2)");
+}
+
+#[test]
+fn display_nested_list() {
+	let list: LispObject = vec![LispObject::from(vec![1i32, 2]), 3i32.into()].into();
+	assert_eq!(format!("{list}"), "((1 2) 3)");
+}
