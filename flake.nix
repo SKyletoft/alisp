@@ -15,7 +15,10 @@
 					inherit system;
 					overlays = [( import rust-overlay )];
 				};
-				rustToolchain = pkgs.rust-bin.nightly.latest.default;
+				rustToolchain = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
+					extensions = [ "rust-src" "rust-analyzer" "miri" ];
+					targets = [ "x86_64-unknown-linux-gnu" ];
+				});
 				nativeBuildInputs = with pkgs; [
 					rustToolchain
 					cargo-expand
