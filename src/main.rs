@@ -9,9 +9,12 @@ mod parse;
 mod test;
 
 fn main() {
-	println!("Hello, world!");
+	let res = eval("(print \"Hello world\")");
+	println!("{res}")
 }
 
 fn eval(code: &str) -> LispObject {
-	todo!()
+	let parsed = parse::parse(code).unwrap();
+	let mut env = eval::new_env();
+	eval::eval(&parsed, &mut env)
 }
