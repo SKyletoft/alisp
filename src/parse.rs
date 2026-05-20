@@ -1,35 +1,159 @@
-use crate::lisp_object::LispObject;
+use nom::{
+	IResult, Parser,
+	branch::alt,
+	bytes::complete::tag,
+	character::complete::{char, digit1, multispace0, satisfy},
+	combinator::{map, opt, recognize},
+	multi::many0,
+	sequence::pair,
+};
+
+use crate::lisp_object::{LispObject, LispType};
 
 pub fn parse(code: &str) -> Result<LispObject, ()> {
-	match code.chars().next() {
-		None => Err(()),
-		Some('(') => {
-			let (inner, rest) = until_close(&code[1..])?;
-			dbg!(inner, rest);
-			todo!()
+	match parse_object(code) {
+		Ok(("", ret)) => Ok(ret),
+		Ok((s, _)) => {
+			eprintln!("Remaining text: {s}");
+			Err(())
 		}
-		Some(digit) if digit.is_ascii_digit() => todo!(),
-		Some('"') => todo!(),
-		Some('\'') => todo!(),
-		Some(c) => todo!(),
+		e => {
+			let _ = dbg!(e);
+			Err(())
+		}
 	}
 }
 
-fn until_close(line: &str) -> Result<(&str, &str), ()> {
-	let idx = line
-		.chars()
-		.scan(1, |acc, curr| {
-			let this = match curr {
-				'(' => 1,
-				')' => -1,
-				_ => 0,
+fn parse_object(code: &str) -> IResult<&str, LispObject> {
+	alt((
+		parse_atom,
+		parse_float,
+		parse_integer,
+		parse_lambda,
+		parse_list::<'(', ')'>,
+		parse_list::<'[', ']'>,
+		parse_list::<'{', '}'>,
+	))
+	.parse(code)
+}
+
+fn is_atom_continue(c: char) -> bool {
+	c.is_ascii_alphanumeric()
+		|| [
+			'_', '-', '+', '*', '/', '|', '&', '.', ';', ',', '~', '!', '@', '`', '´', '$', '€',
+			'£', '¤', '%', '#', '\\', '^', '<', '>', '=',
+		]
+		.contains(&c)
+}
+
+fn is_atom_start(c: char) -> bool {
+	c.is_ascii_alphabetic()
+		|| [
+			'_', '-', '+', '*', '/', '|', '&', '.', ';', ',', '~', '!', '@', '`', '´', '$', '€',
+			'£', '¤', '%', '#', '\\', '^', '<', '>', '=',
+		]
+		.contains(&c)
+}
+
+fn parse_atom(input: &str) -> IResult<&str, LispObject> {
+	map(
+		recognize(pair(
+			satisfy(is_atom_start),
+			many0(satisfy(is_atom_continue)),
+		)),
+		|s: &str| LispObject::Atom(s.into()),
+	)
+	.parse(input)
+}
+
+fn parse_integer(input: &str) -> IResult<&str, LispObject> {
+	// [0..9]+
+	map(digit1, |digits: &str| {
+		LispObject::Integer(digits.parse().expect("Nom should've validated this?"))
+	})
+	.parse(input)
+}
+
+fn parse_float(input: &str) -> IResult<&str, LispObject> {
+	// [0..9]+.[0..9]*
+	let parser = |s| -> IResult<&str, (&str, Option<&str>)> {
+		let (rem, int) = digit1.parse(s)?;
+		let (rem, _) = tag(".")(rem)?;
+		let (rem, frac) = opt(digit1).parse(rem)?;
+		Ok(dbg!((rem, (int, frac))))
+	};
+	let (rem, res) = dbg!(recognize(parser).parse(input)?);
+	let n = LispObject::Float(res.parse().expect("Nom should've validated this?"));
+
+	Ok((rem, n))
+}
+
+fn parse_list<const OPEN: char, const CLOSE: char>(input: &str) -> IResult<&str, LispObject> {
+	let mut list = Vec::new();
+	let (mut rem, _) = pair(char(OPEN), multispace0).parse(input)?;
+
+	loop {
+		(rem, _) = multispace0(rem)?;
+		if let Ok((r, _)) = char::<&str, nom::error::Error<&str>>(CLOSE)(rem) {
+			rem = r;
+			break;
+		}
+
+		let item;
+		(rem, item) = parse_object(rem)?;
+		list.push(item);
+	}
+
+	Ok((rem, list.into()))
+}
+
+fn parse_argument(
+	obj: LispObject,
+) -> Result<(String, Option<LispType>), nom::Err<nom::error::Error<&'static str>>> {
+	match obj {
+		LispObject::Atom(name) => Ok((name, None)),
+		LispObject::Pair(LispObject::Atom(name), LispObject::Pair(LispObject::Atom(ty), rest))
+			if *rest == LispObject::Atom("nil".into()) =>
+		{
+			Ok((name, Some(LispType::Named(ty))))
+		}
+		_ => Err(nom::Err::Error(nom::error::Error::new(
+			"Non-argument in argument position",
+			nom::error::ErrorKind::Tag,
+		))),
+	}
+}
+
+fn parse_lambda(input: &str) -> IResult<&str, LispObject> {
+	dbg!(input);
+	let (rem, mut list) = dbg!(parse_list::<'(', ')'>(input)?);
+	let Some(LispObject::Atom("lambda")) = dbg!(list.next()) else {
+		return Err(nom::Err::Error(nom::error::Error::new(
+			"lambda list was empty?",
+			nom::error::ErrorKind::Tag,
+		)));
+	};
+	let Some(args) = dbg!(list.next()) else {
+		panic!();
+	};
+	let args = args
+		.map(parse_argument)
+		.take(10_000)
+		.collect::<Result<Vec<_>, _>>()?;
+	let Some(body_or_arrow) = dbg!(list.next()) else {
+		panic!();
+	};
+	let (ret_ty, body) = match body_or_arrow {
+		LispObject::Atom("->") => {
+			let Some(LispObject::Atom(type_name)) = dbg!(list.next()) else {
+				panic!();
 			};
-			*acc += this;
-			Some(*acc)
-		})
-		.position(|x| x == 0)
-		.ok_or(())?;
-	Ok(line.split_at(idx))
+			(Some(LispType::Named(type_name)), Box::new(list))
+		}
+		body => (None, Box::new(vec![body].into())),
+	};
+	let ret = LispObject::Lambda { args, ret_ty, body };
+	Ok((rem, ret))
 }
 
 #[cfg(test)]
@@ -37,10 +161,165 @@ mod test {
 	use crate::lisp_object::LispObject;
 
 	#[test]
-	fn parse() {
+	fn int_list() {
 		let code = "(1 2 3)";
 		let expected = LispObject::from(vec![1, 2, 3]);
-		let result = super::parse(&code);
+		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
+	}
+
+	#[test]
+	fn whitespace_after_number() {
+		let code = "123a";
+		let result = dbg!(super::parse(code));
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn float() {
+		let code = "123.456";
+		let result = dbg!(super::parse(code));
+		// Parse the string instead of hardcoding the float to make sure we use the same
+		// stdlib float parser and not some custom one from rustc
+		let expected = LispObject::Float(code.parse().unwrap());
+		assert_eq!(result, Ok(expected));
+	}
+
+	#[test]
+	fn lambda_no_args() {
+		let result = super::parse("(lambda [] body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![],
+				ret_ty: None,
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_one_arg_no_types() {
+		let result = super::parse("(lambda [x] body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![("x".into(), None)],
+				ret_ty: None,
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_typed_untyped_args_with_return() {
+		use crate::lisp_object::LispType;
+
+		let result = super::parse("(lambda [(x i32) y] -> bool body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![
+					("x".into(), Some(LispType::Named("i32".into()))),
+					("y".into(), None),
+				],
+				ret_ty: Some(LispType::Named("bool".into())),
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_one_typed_arg_with_return() {
+		use crate::lisp_object::LispType;
+
+		let result = super::parse("(lambda [(x i32)] -> i32 body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![("x".into(), Some(LispType::Named("i32".into())))],
+				ret_ty: Some(LispType::Named("i32".into())),
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_untyped_then_typed_args_no_return() {
+		use crate::lisp_object::LispType;
+
+		let result = super::parse("(lambda [x (y i32)] body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![
+					("x".into(), None),
+					("y".into(), Some(LispType::Named("i32".into()))),
+				],
+				ret_ty: None,
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_untyped_then_typed_args_with_return() {
+		use crate::lisp_object::LispType;
+
+		let result = super::parse("(lambda [x (y i32)] -> i32 body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![
+					("x".into(), None),
+					("y".into(), Some(LispType::Named("i32".into()))),
+				],
+				ret_ty: Some(LispType::Named("i32".into())),
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_one_arg_no_type_with_return() {
+		use crate::lisp_object::LispType;
+
+		let result = super::parse("(lambda [x] -> i32 body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![("x".into(), None)],
+				ret_ty: Some(LispType::Named("i32".into())),
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_one_typed_arg_no_return() {
+		use crate::lisp_object::LispType;
+
+		let result = super::parse("(lambda [(x i32)] body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![("x".into(), Some(LispType::Named("i32".into())))],
+				ret_ty: None,
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_two_untyped_args_no_return() {
+		let result = super::parse("(lambda [x y] body)").unwrap();
+		assert_eq!(
+			result,
+			LispObject::Lambda {
+				args: vec![("x".into(), None), ("y".into(), None)],
+				ret_ty: None,
+				body: Box::new(vec![LispObject::Atom("body".into())].into()),
+			}
+		);
 	}
 }
