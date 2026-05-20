@@ -135,3 +135,24 @@ impl<T: Into<LispObject>> From<VecDeque<T>> for LispObject {
 		})
 	}
 }
+
+impl Iterator for LispObject {
+	type Item = LispObject;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		match self {
+			LispObject::Atom("nil") => None,
+			LispObject::Pair(this, next) => {
+				let this = std::mem::replace(this.as_mut(), LispObject::Integer(0));
+				let next = std::mem::replace(next.as_mut(), LispObject::Integer(0));
+				*self = next;
+				Some(this)
+			}
+			_ => {
+				let ret = std::mem::replace(self, LispObject::Integer(0));
+				*self = LispObject::Atom("nil".into());
+				Some(ret)
+			}
+		}
+	}
+}
