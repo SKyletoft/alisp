@@ -69,26 +69,62 @@ impl fmt::Display for LispType {
 impl fmt::Display for LispObject {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			LispObject::Atom(s) => write!(f, "{s}"),
-			LispObject::Integer(n) => write!(f, "{n}"),
-			LispObject::Float(n) => write!(f, "{n}"),
 			LispObject::Pair(car, cdr) => {
-				write!(f, "({car}")?;
-				display_cdr(f, cdr)?;
-				write!(f, ")")
+				write!(f, "'")?;
+				write_pair(f, car, cdr)
 			}
+			other => write_elem(f, other),
 		}
 	}
 }
 
-fn display_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispObject) -> fmt::Result {
+fn write_elem(f: &mut fmt::Formatter<'_>, obj: &LispObject) -> fmt::Result {
+	match obj {
+		LispObject::Atom(s) => write!(f, "{s}"),
+		LispObject::Integer(n) => write!(f, "{n}"),
+		LispObject::Float(n) => write!(f, "{n}"),
+		LispObject::Pair(car, cdr) => write_pair(f, car, cdr),
+		LispObject::Lambda { args, ret_ty, body } => {
+			write!(f, "(λ [")?;
+			for (i, (name, ty)) in args.iter().enumerate() {
+				if i > 0 {
+					write!(f, " ")?;
+				}
+				match ty {
+					Some(ty) => write!(f, "({name} {ty})")?,
+					None => write!(f, "{name}")?,
+				}
+			}
+			write!(f, "]")?;
+			if let Some(ret_ty) = ret_ty {
+				write!(f, " -> {ret_ty}")?;
+			}
+			write!(f, " ")?;
+			write_elem(f, body)?;
+			write!(f, ")")
+		}
+	}
+}
+
+fn write_pair(f: &mut fmt::Formatter<'_>, car: &LispObject, cdr: &LispObject) -> fmt::Result {
+	write!(f, "(")?;
+	write_elem(f, car)?;
+	write_cdr(f, cdr)?;
+	write!(f, ")")
+}
+
+fn write_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispObject) -> fmt::Result {
 	match cdr {
 		LispObject::Atom(s) if s == "nil" => Ok(()),
 		LispObject::Pair(car, cdr) => {
-			write!(f, " {car}")?;
-			display_cdr(f, cdr)
+			write!(f, " ")?;
+			write_elem(f, car)?;
+			write_cdr(f, cdr)
 		}
-		other => write!(f, " . {other}"),
+		other => {
+			write!(f, " . ")?;
+			write_elem(f, other)
+		}
 	}
 }
 
