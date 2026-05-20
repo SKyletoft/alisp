@@ -7,6 +7,16 @@ pub enum LispObject {
 	Integer(i32 /* TODO: Bigints */),
 	Float(f64),
 	Pair(Box<LispObject>, Box<LispObject>),
+	Lambda {
+		args: Vec<(String, Option<LispType>)>,
+		ret_ty: Option<LispType>,
+		body: Box<LispObject>,
+	},
+}
+
+#[derive(Debug, PartialEq, Clone, Hash)]
+pub enum LispType {
+	Named(String),
 }
 
 impl From<String> for LispObject {
@@ -45,6 +55,14 @@ impl<T: Into<LispObject>> From<Vec<T>> for LispObject {
 		v.into_iter()
 			.map(Into::into)
 			.rfold(nil, |acc, obj| LispObject::Pair(Box::new(obj), Box::new(acc)))
+	}
+}
+
+impl fmt::Display for LispType {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			LispType::Named(s) => write!(f, "{s}"),
+		}
 	}
 }
 
