@@ -26,15 +26,11 @@ fn fib() {
       (cond ((<= i 1) 1)
 	    (t (+ (fib (- i 1))
 		  (fib (- i 2))))))
+(fib 3)
 "#;
-	let expected = 3.into();
+	let expected = rust_fib(3).into();
 	let result = crate::eval(code);
 	assert_eq!(result, expected);
-}
-
-#[test]
-fn hello_world() {
-	let code = "(print \"Hello world\")";
 }
 
 fn check_list(list: &LispObject, expected: &[i32]) {
@@ -96,18 +92,113 @@ fn display_float() {
 #[test]
 fn display_proper_list() {
 	let list: LispObject = vec![1, 2, 3].into();
-	assert_eq!(format!("{list}"), "(1 2 3)");
+	assert_eq!(format!("{list}"), "'(1 2 3)");
 }
 
 #[test]
 fn display_improper_list() {
 	use crate::LispObject::*;
 	let list = Pair(Box::new(Integer(1)), Box::new(Integer(2)));
-	assert_eq!(format!("{list}"), "(1 . 2)");
+	assert_eq!(format!("{list}"), "'(1 . 2)");
 }
 
 #[test]
 fn display_nested_list() {
 	let list: LispObject = vec![LispObject::from(vec![1i32, 2]), 3i32.into()].into();
-	assert_eq!(format!("{list}"), "((1 2) 3)");
+	assert_eq!(format!("{list}"), "'((1 2) 3)");
+}
+
+#[test]
+fn display_lambda() {
+	let lambda = LispObject::Lambda {
+		args: vec![("x".into(), None)],
+		ret_ty: None,
+		body: Box::new(vec![LispObject::Atom("body".into())].into()),
+	};
+	assert_eq!(format!("{lambda}"), "(λ [x] (body))");
+}
+
+#[test]
+fn display_lambda_multi_arg() {
+	let lambda = LispObject::Lambda {
+		args: vec![("x".into(), None), ("y".into(), None)],
+		ret_ty: None,
+		body: Box::new(vec![LispObject::Atom("body".into())].into()),
+	};
+	assert_eq!(format!("{lambda}"), "(λ [x y] (body))");
+}
+
+#[test]
+fn display_partially_typed_lambda_1() {
+	use crate::lisp_object::LispType;
+	let lambda = LispObject::Lambda {
+		args: vec![("x".into(), Some(LispType::Named("i32".into())))],
+		ret_ty: None,
+		body: Box::new(vec![LispObject::Atom("body".into())].into()),
+	};
+	assert_eq!(format!("{lambda}"), "(λ [(x i32)] (body))");
+}
+
+#[test]
+fn display_partially_typed_lambda_2() {
+	use crate::lisp_object::LispType;
+	let lambda = LispObject::Lambda {
+		args: vec![("x".into(), None)],
+		ret_ty: Some(LispType::Named("i32".into())),
+		body: Box::new(vec![LispObject::Atom("body".into())].into()),
+	};
+	assert_eq!(format!("{lambda}"), "(λ [x] -> i32 (body))");
+}
+
+#[test]
+fn display_partially_typed_lambda_3() {
+	use crate::lisp_object::LispType;
+	let lambda = LispObject::Lambda {
+		args: vec![
+			("x".into(), None),
+			("y".into(), Some(LispType::Named("i32".into()))),
+		],
+		ret_ty: Some(LispType::Named("i32".into())),
+		body: Box::new(vec![LispObject::Atom("body".into())].into()),
+	};
+	assert_eq!(format!("{lambda}"), "(λ [x (y i32)] -> i32 (body))");
+}
+
+#[test]
+fn display_partially_typed_lambda_4() {
+	use crate::lisp_object::LispType;
+	let lambda = LispObject::Lambda {
+		args: vec![
+			("x".into(), None),
+			("y".into(), Some(LispType::Named("i32".into()))),
+		],
+		ret_ty: None,
+		body: Box::new(vec![LispObject::Atom("body".into())].into()),
+	};
+	assert_eq!(format!("{lambda}"), "(λ [x (y i32)] (body))");
+}
+
+#[test]
+fn display_typed_lambda() {
+	use crate::lisp_object::LispType;
+	let lambda = LispObject::Lambda {
+		args: vec![("x".into(), Some(LispType::Named("i32".into())))],
+		ret_ty: Some(LispType::Named("i32".into())),
+		body: Box::new(vec![LispObject::Atom("body".into())].into()),
+	};
+	assert_eq!(format!("{lambda}"), "(λ [(x i32)] -> i32 (body))");
+}
+
+#[test]
+fn display_partial_typed_lambda() {
+	use crate::lisp_object::LispType;
+	let lambda = LispObject::Lambda {
+		args: vec![
+			("x".into(), Some(LispType::Named("i32".into()))),
+			("y".into(), None),
+		],
+		ret_ty: Some(LispType::Named("bool".into())),
+		body: Box::new(vec![LispObject::Atom("body".into())].into()),
+	};
+	assert_eq!(format!("{lambda}"), "(λ [(x i32) y] -> bool (body))");
 }
