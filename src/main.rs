@@ -2,6 +2,7 @@
 
 use lisp_object::LispObject;
 
+mod eval;
 mod lisp_object;
 mod parse;
 #[cfg(test)]
