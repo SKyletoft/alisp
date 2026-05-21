@@ -1,181 +1,191 @@
-use std::{collections::VecDeque, fmt};
+pub use parse_tree::{LispParseTree, LispType};
 
 pub type SmallString = smallstr::SmallString<[u8; 23]>;
 
-#[derive(Debug, PartialEq, Clone, derive_more::From)]
-pub enum LispParseTree {
-	Atom(SmallString),
-	Integer(i32 /* TODO: Bigints */),
-	Float(f64),
-	Pair(Box<LispParseTree>, Box<LispParseTree>),
-	Lambda {
-		args: Vec<(SmallString, Option<LispType>)>,
-		ret_ty: Option<LispType>,
-		body: Box<LispParseTree>,
-	},
-}
+mod parse_tree {
+	use std::{collections::VecDeque, fmt};
 
-impl From<String> for LispParseTree {
-	fn from(s: String) -> Self {
-		LispParseTree::Atom(s.into())
+	use super::SmallString;
+
+	#[derive(Debug, PartialEq, Clone, derive_more::From)]
+	pub enum LispParseTree {
+		Atom(SmallString),
+		Integer(i32 /* TODO: Bigints */),
+		Float(f64),
+		Pair(Box<LispParseTree>, Box<LispParseTree>),
+		Lambda {
+			args: Vec<(SmallString, Option<LispType>)>,
+			ret_ty: Option<LispType>,
+			body: Box<LispParseTree>,
+		},
 	}
-}
 
-impl From<&str> for LispParseTree {
-	fn from(s: &str) -> Self {
-		LispParseTree::Atom(s.into())
-	}
-}
-
-impl From<(LispParseTree, LispParseTree)> for LispParseTree {
-	fn from((car, cdr): (LispParseTree, LispParseTree)) -> Self {
-		LispParseTree::Pair(Box::new(car), Box::new(cdr))
-	}
-}
-
-impl<T: Into<LispParseTree>> From<Vec<T>> for LispParseTree {
-	fn from(v: Vec<T>) -> Self {
-		let nil = LispParseTree::Atom("nil".into());
-		v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
-			LispParseTree::Pair(Box::new(obj), Box::new(acc))
-		})
-	}
-}
-
-impl fmt::Display for LispType {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			LispType::Named(s) => write!(f, "{s}"),
+	impl From<String> for LispParseTree {
+		fn from(s: String) -> Self {
+			LispParseTree::Atom(s.into())
 		}
 	}
-}
 
-impl fmt::Display for LispParseTree {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
+	impl From<&str> for LispParseTree {
+		fn from(s: &str) -> Self {
+			LispParseTree::Atom(s.into())
+		}
+	}
+
+	impl From<(LispParseTree, LispParseTree)> for LispParseTree {
+		fn from((car, cdr): (LispParseTree, LispParseTree)) -> Self {
+			LispParseTree::Pair(Box::new(car), Box::new(cdr))
+		}
+	}
+
+	impl<T: Into<LispParseTree>> From<Vec<T>> for LispParseTree {
+		fn from(v: Vec<T>) -> Self {
+			let nil = LispParseTree::Atom("nil".into());
+			v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
+				LispParseTree::Pair(Box::new(obj), Box::new(acc))
+			})
+		}
+	}
+
+	impl fmt::Display for LispType {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			match self {
+				LispType::Named(s) => write!(f, "{s}"),
+			}
+		}
+	}
+
+	impl fmt::Display for LispParseTree {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			match self {
+				LispParseTree::Pair(car, cdr) => {
+					write!(f, "'")?;
+					write_pair(f, car, cdr)
+				}
+				other => write_elem(f, other),
+			}
+		}
+	}
+
+	fn write_elem(f: &mut fmt::Formatter<'_>, obj: &LispParseTree) -> fmt::Result {
+		match obj {
+			LispParseTree::Atom(s) => write!(f, "{s}"),
+			LispParseTree::Integer(n) => write!(f, "{n}"),
+			LispParseTree::Float(n) => write!(f, "{n}"),
+			LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
+			LispParseTree::Lambda { args, ret_ty, body } => {
+				write!(f, "(λ [")?;
+				for (i, (name, ty)) in args.iter().enumerate() {
+					if i > 0 {
+						write!(f, " ")?;
+					}
+					match ty {
+						Some(ty) => write!(f, "({name} {ty})")?,
+						None => write!(f, "{name}")?,
+					}
+				}
+				write!(f, "]")?;
+				if let Some(ret_ty) = ret_ty {
+					write!(f, " -> {ret_ty}")?;
+				}
+				write!(f, " ")?;
+				write_elem(f, body)?;
+				write!(f, ")")
+			}
+		}
+	}
+
+	fn write_pair(
+		f: &mut fmt::Formatter<'_>,
+		car: &LispParseTree,
+		cdr: &LispParseTree,
+	) -> fmt::Result {
+		write!(f, "(")?;
+		write_elem(f, car)?;
+		write_cdr(f, cdr)?;
+		write!(f, ")")
+	}
+
+	fn write_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispParseTree) -> fmt::Result {
+		match cdr {
+			LispParseTree::Atom("nil") => Ok(()),
 			LispParseTree::Pair(car, cdr) => {
-				write!(f, "'")?;
-				write_pair(f, car, cdr)
+				write!(f, " ")?;
+				write_elem(f, car)?;
+				write_cdr(f, cdr)
 			}
-			other => write_elem(f, other),
+			other => {
+				write!(f, " . ")?;
+				write_elem(f, other)
+			}
 		}
 	}
-}
 
-fn write_elem(f: &mut fmt::Formatter<'_>, obj: &LispParseTree) -> fmt::Result {
-	match obj {
-		LispParseTree::Atom(s) => write!(f, "{s}"),
-		LispParseTree::Integer(n) => write!(f, "{n}"),
-		LispParseTree::Float(n) => write!(f, "{n}"),
-		LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
-		LispParseTree::Lambda { args, ret_ty, body } => {
-			write!(f, "(λ [")?;
-			for (i, (name, ty)) in args.iter().enumerate() {
-				if i > 0 {
-					write!(f, " ")?;
+	impl<T: Into<LispParseTree>> From<VecDeque<T>> for LispParseTree {
+		fn from(v: VecDeque<T>) -> Self {
+			let nil = LispParseTree::Atom("nil".into());
+			v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
+				LispParseTree::Pair(Box::new(obj), Box::new(acc))
+			})
+		}
+	}
+
+	impl Iterator for LispParseTree {
+		type Item = LispParseTree;
+
+		fn next(&mut self) -> Option<Self::Item> {
+			match self {
+				LispParseTree::Atom("nil") => None,
+				LispParseTree::Pair(this, next) => {
+					let this = std::mem::replace(this.as_mut(), LispParseTree::Integer(0));
+					let next = std::mem::replace(next.as_mut(), LispParseTree::Integer(0));
+					*self = next;
+					Some(this)
 				}
-				match ty {
-					Some(ty) => write!(f, "({name} {ty})")?,
-					None => write!(f, "{name}")?,
+				_ => {
+					let ret = std::mem::replace(self, LispParseTree::Integer(0));
+					*self = LispParseTree::Atom("nil".into());
+					Some(ret)
 				}
 			}
-			write!(f, "]")?;
-			if let Some(ret_ty) = ret_ty {
-				write!(f, " -> {ret_ty}")?;
-			}
-			write!(f, " ")?;
-			write_elem(f, body)?;
-			write!(f, ")")
 		}
 	}
-}
 
-fn write_pair(f: &mut fmt::Formatter<'_>, car: &LispParseTree, cdr: &LispParseTree) -> fmt::Result {
-	write!(f, "(")?;
-	write_elem(f, car)?;
-	write_cdr(f, cdr)?;
-	write!(f, ")")
-}
-
-fn write_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispParseTree) -> fmt::Result {
-	match cdr {
-		LispParseTree::Atom("nil") => Ok(()),
-		LispParseTree::Pair(car, cdr) => {
-			write!(f, " ")?;
-			write_elem(f, car)?;
-			write_cdr(f, cdr)
-		}
-		other => {
-			write!(f, " . ")?;
-			write_elem(f, other)
-		}
-	}
-}
-
-impl<T: Into<LispParseTree>> From<VecDeque<T>> for LispParseTree {
-	fn from(v: VecDeque<T>) -> Self {
-		let nil = LispParseTree::Atom("nil".into());
-		v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
-			LispParseTree::Pair(Box::new(obj), Box::new(acc))
-		})
-	}
-}
-
-impl Iterator for LispParseTree {
-	type Item = LispParseTree;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		match self {
-			LispParseTree::Atom("nil") => None,
-			LispParseTree::Pair(this, next) => {
-				let this = std::mem::replace(this.as_mut(), LispParseTree::Integer(0));
-				let next = std::mem::replace(next.as_mut(), LispParseTree::Integer(0));
-				*self = next;
-				Some(this)
-			}
-			_ => {
-				let ret = std::mem::replace(self, LispParseTree::Integer(0));
-				*self = LispParseTree::Atom("nil".into());
-				Some(ret)
+	impl LispParseTree {
+		pub fn peek(&self) -> Option<&LispParseTree> {
+			match self {
+				LispParseTree::Atom(s) if s == "nil" => None,
+				LispParseTree::Pair(car, _) => Some(car),
+				other => Some(other),
 			}
 		}
-	}
-}
 
-impl LispParseTree {
-	pub fn peek(&self) -> Option<&LispParseTree> {
-		match self {
-			LispParseTree::Atom(s) if s == "nil" => None,
-			LispParseTree::Pair(car, _) => Some(car),
-			other => Some(other),
+		pub fn type_of(&self) -> Option<LispType> {
+			let res = match self {
+				LispParseTree::Atom(_) => "atom".into(),
+				LispParseTree::Integer(_) => "i32".into(),
+				LispParseTree::Float(_) => "f64".into(),
+				LispParseTree::Pair(..) => "pair".into(),
+				LispParseTree::Lambda { .. } => "function".into(),
+			};
+			Some(res)
 		}
 	}
 
-	pub fn type_of(&self) -> Option<LispType> {
-		let res = match self {
-			LispParseTree::Atom(_) => "atom".into(),
-			LispParseTree::Integer(_) => "i32".into(),
-			LispParseTree::Float(_) => "f64".into(),
-			LispParseTree::Pair(..) => "pair".into(),
-			LispParseTree::Lambda { .. } => "function".into(),
-		};
-		Some(res)
+	#[derive(Debug, PartialEq, Clone, Hash, derive_more::From)]
+	pub enum LispType {
+		Named(SmallString),
 	}
-}
 
-#[derive(Debug, PartialEq, Clone, Hash, derive_more::From)]
-pub enum LispType {
-	Named(SmallString),
-}
-
-impl From<String> for LispType {
-	fn from(s: String) -> Self {
-		LispType::Named(s.into())
+	impl From<String> for LispType {
+		fn from(s: String) -> Self {
+			LispType::Named(s.into())
+		}
 	}
-}
 
-impl From<&str> for LispType {
-	fn from(s: &str) -> Self {
-		LispType::Named(s.into())
+	impl From<&str> for LispType {
+		fn from(s: &str) -> Self {
+			LispType::Named(s.into())
+		}
 	}
 }
