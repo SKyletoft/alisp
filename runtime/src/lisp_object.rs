@@ -187,6 +187,8 @@ mod parse_tree {
 mod runtime_object {
 	use std::marker::PhantomData;
 
+use super::{LispType, SmallString};
+
 	#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 	pub struct ObjectReference<'a>(usize, PhantomData<&'a ()>);
 
@@ -201,5 +203,15 @@ mod runtime_object {
 	//		body: Box<LispParseTree>,
 	//	},
 	// }
-	pub enum LispObject<'a> {}
+	pub enum LispObject<'a> {
+		Atom(SmallString),
+		Integer(i32),
+		Float(f64),
+		Pair(ObjectReference<'a>, ObjectReference<'a>),
+		Lambda {
+			params: Vec<(SmallString, Option<LispType>)>,
+			ret_ty: Option<LispType>,
+			body: ObjectReference<'a>
+		}
+	}
 }
