@@ -11,6 +11,10 @@ pub enum RuntimeError {
 		expected: Option<LispType>,
 		actual: Option<LispType>,
 	},
+	#[display("Too many arguments")]
+	TooManyArguments,
+	#[display("alisp doesn't support curried functions (= not enough arguments in function call)")]
+	NoCurrying,
 }
 
 pub fn eval(obj: &LispParseTree, env: &mut Env) -> Result<LispParseTree, RuntimeError> {
