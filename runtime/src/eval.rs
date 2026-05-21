@@ -29,11 +29,12 @@ fn type_guard(a: &Option<LispType>, b: &Option<LispType>) -> Result<(), RuntimeE
 
 pub fn eval(obj: &LispParseTree, env: &mut Env) -> Result<LispParseTree, RuntimeError> {
 	let res = match obj {
-		LispParseTree::Pair(func, _args) => {
+		LispParseTree::Pair(func, args) => {
+			let mut args = args.as_ref().clone();
 			let function = eval(func, env)?;
 			let LispParseTree::Lambda {
-				args: _,
-				ret_ty: _,
+				params,
+				ret_ty,
 				body,
 			} = function
 			else {
@@ -42,10 +43,23 @@ pub fn eval(obj: &LispParseTree, env: &mut Env) -> Result<LispParseTree, Runtime
 					actual: function.type_of(),
 				});
 			};
-			*body
+			let mut params_iter = params.into_iter().peekable();
+			for (arg, (_, param_type)) in std::iter::zip(&mut args, &mut params_iter) {
+				let evaled_arg = eval(&arg, env)?;
+				type_guard(&evaled_arg.type_of(), &param_type)?;
+			}
+			if args.peek().is_some() {
+				Err(RuntimeError::TooManyArguments)?;
+			}
+			if params_iter.peek().is_some() {
+				Err(RuntimeError::NoCurrying)?;
+			}
+			let ret = *body;
+			type_guard(&ret_ty, &ret.type_of())?;
+			ret
 		}
 		LispParseTree::Atom(atom) => env
-			.get(&*atom)
+			.get(atom)
 			.cloned()
 			.ok_or(RuntimeError::UndefinedVariable)?,
 		_ => obj.clone(),
