@@ -112,7 +112,7 @@ fn display_nested_list() {
 #[test]
 fn display_lambda() {
 	let lambda = LispParseTree::Lambda {
-		args: vec![("x".into(), None)],
+		params: vec![("x".into(), None)],
 		ret_ty: None,
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -122,7 +122,7 @@ fn display_lambda() {
 #[test]
 fn display_lambda_multi_arg() {
 	let lambda = LispParseTree::Lambda {
-		args: vec![("x".into(), None), ("y".into(), None)],
+		params: vec![("x".into(), None), ("y".into(), None)],
 		ret_ty: None,
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -133,7 +133,7 @@ fn display_lambda_multi_arg() {
 fn display_partially_typed_lambda_1() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		args: vec![("x".into(), Some(LispType::Named("i32".into())))],
+		params: vec![("x".into(), Some(LispType::Named("i32".into())))],
 		ret_ty: None,
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -144,7 +144,7 @@ fn display_partially_typed_lambda_1() {
 fn display_partially_typed_lambda_2() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		args: vec![("x".into(), None)],
+		params: vec![("x".into(), None)],
 		ret_ty: Some(LispType::Named("i32".into())),
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -155,7 +155,7 @@ fn display_partially_typed_lambda_2() {
 fn display_partially_typed_lambda_3() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		args: vec![
+		params: vec![
 			("x".into(), None),
 			("y".into(), Some(LispType::Named("i32".into()))),
 		],
@@ -169,7 +169,7 @@ fn display_partially_typed_lambda_3() {
 fn display_partially_typed_lambda_4() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		args: vec![
+		params: vec![
 			("x".into(), None),
 			("y".into(), Some(LispType::Named("i32".into()))),
 		],
@@ -183,7 +183,7 @@ fn display_partially_typed_lambda_4() {
 fn display_typed_lambda() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		args: vec![("x".into(), Some(LispType::Named("i32".into())))],
+		params: vec![("x".into(), Some(LispType::Named("i32".into())))],
 		ret_ty: Some(LispType::Named("i32".into())),
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -194,7 +194,7 @@ fn display_typed_lambda() {
 fn display_partial_typed_lambda() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		args: vec![
+		params: vec![
 			("x".into(), Some(LispType::Named("i32".into()))),
 			("y".into(), None),
 		],

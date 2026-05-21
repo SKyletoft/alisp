@@ -152,7 +152,7 @@ fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
 		}
 		body => (None, Box::new(vec![body].into())),
 	};
-	let ret = LispParseTree::Lambda { args, ret_ty, body };
+	let ret = LispParseTree::Lambda { params: args, ret_ty, body };
 	Ok((rem, ret))
 }
 
@@ -191,7 +191,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![],
+				params: vec![],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -204,7 +204,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![("x".into(), None)],
+				params: vec![("x".into(), None)],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -219,7 +219,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![
+				params: vec![
 					("x".into(), Some(LispType::Named("i32".into()))),
 					("y".into(), None),
 				],
@@ -237,7 +237,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![("x".into(), Some(LispType::Named("i32".into())))],
+				params: vec![("x".into(), Some(LispType::Named("i32".into())))],
 				ret_ty: Some(LispType::Named("i32".into())),
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -252,7 +252,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![
+				params: vec![
 					("x".into(), None),
 					("y".into(), Some(LispType::Named("i32".into()))),
 				],
@@ -270,7 +270,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![
+				params: vec![
 					("x".into(), None),
 					("y".into(), Some(LispType::Named("i32".into()))),
 				],
@@ -288,7 +288,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![("x".into(), None)],
+				params: vec![("x".into(), None)],
 				ret_ty: Some(LispType::Named("i32".into())),
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -303,7 +303,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![("x".into(), Some(LispType::Named("i32".into())))],
+				params: vec![("x".into(), Some(LispType::Named("i32".into())))],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -316,7 +316,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				args: vec![("x".into(), None), ("y".into(), None)],
+				params: vec![("x".into(), None), ("y".into(), None)],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}

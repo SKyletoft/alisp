@@ -15,7 +15,7 @@ mod parse_tree {
 		Float(f64),
 		Pair(Box<LispParseTree>, Box<LispParseTree>),
 		Lambda {
-			args: Vec<(SmallString, Option<LispType>)>,
+			params: Vec<(SmallString, Option<LispType>)>,
 			ret_ty: Option<LispType>,
 			body: Box<LispParseTree>,
 		},
@@ -66,9 +66,9 @@ mod parse_tree {
 			LispParseTree::Integer(n) => write!(f, "{n}"),
 			LispParseTree::Float(n) => write!(f, "{n}"),
 			LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
-			LispParseTree::Lambda { args, ret_ty, body } => {
+			LispParseTree::Lambda { params, ret_ty, body } => {
 				write!(f, "(λ [")?;
-				for (i, (name, ty)) in args.iter().enumerate() {
+				for (i, (name, ty)) in params.iter().enumerate() {
 					if i > 0 {
 						write!(f, " ")?;
 					}
