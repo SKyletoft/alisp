@@ -1,15 +1,16 @@
-use crate::lisp_object::LispObject;
+use crate::{eval, lisp_object::LispObject, parse};
 
-#[test]
-fn hi() {
-	assert_eq!(1, 1);
+pub fn eval(code: &str) -> LispObject {
+	let parsed = parse::parse(code).unwrap();
+	let mut env = eval::new_env();
+	eval::eval(&parsed, &mut env).unwrap()
 }
 
 #[test]
 fn add() {
 	let code = "(+ 1 2)";
 	let expected = 3.into();
-	let result = crate::eval(code);
+	let result = eval(code);
 	assert_eq!(result, expected);
 }
 
@@ -29,7 +30,7 @@ fn fib() {
 (fib 3)
 "#;
 	let expected = rust_fib(3).into();
-	let result = crate::eval(code);
+	let result = eval(code);
 	assert_eq!(result, expected);
 }
 

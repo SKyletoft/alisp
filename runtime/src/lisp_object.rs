@@ -15,11 +15,6 @@ pub enum LispObject {
 	},
 }
 
-#[derive(Debug, PartialEq, Clone, Hash)]
-pub enum LispType {
-	Named(SmallString),
-}
-
 impl From<SmallString> for LispObject {
 	fn from(s: SmallString) -> Self {
 		LispObject::Atom(s)
@@ -162,5 +157,49 @@ impl Iterator for LispObject {
 				Some(ret)
 			}
 		}
+	}
+}
+
+impl LispObject {
+	pub fn peek(&self) -> Option<&LispObject> {
+		match self {
+			LispObject::Atom(s) if s == "nil" => None,
+			LispObject::Pair(car, _) => Some(car),
+			other => Some(other),
+		}
+	}
+
+	pub fn type_of(&self) -> Option<LispType> {
+		let res = match self {
+			LispObject::Atom(_) => "atom".into(),
+			LispObject::Integer(_) => "i32".into(),
+			LispObject::Float(_) => "f64".into(),
+			LispObject::Pair(..) => "pair".into(),
+			LispObject::Lambda { .. } => "function".into(),
+		};
+		Some(res)
+	}
+}
+
+#[derive(Debug, PartialEq, Clone, Hash)]
+pub enum LispType {
+	Named(SmallString),
+}
+
+impl From<String> for LispType {
+	fn from(s: String) -> Self {
+		LispType::Named(s.into())
+	}
+}
+
+impl From<SmallString> for LispType {
+	fn from(s: SmallString) -> Self {
+		LispType::Named(s)
+	}
+}
+
+impl From<&str> for LispType {
+	fn from(s: &str) -> Self {
+		LispType::Named(s.into())
 	}
 }
