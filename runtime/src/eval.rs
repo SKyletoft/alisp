@@ -1,6 +1,6 @@
-use crate::lisp_object::{LispObject, LispType, SmallString};
+use crate::lisp_object::{LispParseTree, LispType, SmallString};
 
-type Env = std::collections::HashMap<SmallString, LispObject>;
+type Env = std::collections::HashMap<SmallString, LispParseTree>;
 
 #[derive(Debug)]
 pub enum RuntimeError {
@@ -11,11 +11,11 @@ pub enum RuntimeError {
 	},
 }
 
-pub fn eval(obj: &LispObject, env: &mut Env) -> Result<LispObject, RuntimeError> {
+pub fn eval(obj: &LispParseTree, env: &mut Env) -> Result<LispParseTree, RuntimeError> {
 	let res = match obj {
-		LispObject::Pair(func, _args) => {
+		LispParseTree::Pair(func, _args) => {
 			let function = eval(func, env)?;
-			let LispObject::Lambda {
+			let LispParseTree::Lambda {
 				args: _,
 				ret_ty: _,
 				body,
@@ -28,7 +28,7 @@ pub fn eval(obj: &LispObject, env: &mut Env) -> Result<LispObject, RuntimeError>
 			};
 			*body
 		}
-		LispObject::Atom(atom) => env
+		LispParseTree::Atom(atom) => env
 			.get(&*atom)
 			.cloned()
 			.ok_or(RuntimeError::UndefinedVariable)?,
