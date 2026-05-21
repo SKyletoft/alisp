@@ -122,7 +122,7 @@ fn write_pair(f: &mut fmt::Formatter<'_>, car: &LispObject, cdr: &LispObject) ->
 
 fn write_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispObject) -> fmt::Result {
 	match cdr {
-		LispObject::Atom(s) if s == "nil" => Ok(()),
+		LispObject::Atom("nil") => Ok(()),
 		LispObject::Pair(car, cdr) => {
 			write!(f, " ")?;
 			write_elem(f, car)?;
