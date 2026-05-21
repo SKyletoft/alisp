@@ -48,14 +48,6 @@ mod parse_tree {
 		}
 	}
 
-	impl fmt::Display for LispType {
-		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-			match self {
-				LispType::Named(s) => write!(f, "{s}"),
-			}
-		}
-	}
-
 	impl fmt::Display for LispParseTree {
 		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 			match self {
@@ -173,8 +165,9 @@ mod parse_tree {
 		}
 	}
 
-	#[derive(Debug, PartialEq, Clone, Hash, derive_more::From)]
+	#[derive(Debug, PartialEq, Clone, Hash, derive_more::From, derive_more::Display)]
 	pub enum LispType {
+		#[display("{_0}")]
 		Named(SmallString),
 	}
 

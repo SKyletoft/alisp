@@ -2,9 +2,11 @@ use crate::lisp_object::{LispParseTree, LispType, SmallString};
 
 type Env = std::collections::HashMap<SmallString, LispParseTree>;
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, derive_more::Error)]
 pub enum RuntimeError {
+	#[display("Undefined variable")]
 	UndefinedVariable,
+	#[display("Type error: {expected:?} ≠ {actual:?}")]
 	TypeError {
 		expected: Option<LispType>,
 		actual: Option<LispType>,
