@@ -7,5 +7,5 @@ edition = "2024"
 anyhow = "1.0"
 smallstr = { path = "../smallstr", features = [ "union", "deref_patterns" ] }
 smallvec = { version = "1.15", features = [ "union", "const_generics", "const_new" ] }
-derive_more = { version = "2", features = ["from"] }
+derive_more = { version = "2", features = ["from", "display", "error"] }
 nom = "8.0"
