@@ -1,4 +1,5 @@
 pub use parse_tree::{LispParseTree, LispType};
+pub use runtime_object::{LispObject, ObjectReference};
 
 pub type SmallString = smallstr::SmallString<[u8; 23]>;
 
@@ -188,4 +189,24 @@ mod parse_tree {
 			LispType::Named(s.into())
 		}
 	}
+}
+
+mod runtime_object {
+	use std::marker::PhantomData;
+
+	#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+	pub struct ObjectReference<'a>(usize, PhantomData<&'a ()>);
+
+	// pub enum LispParseTree {
+	//	Atom(SmallString),
+	//	Integer(i32 /* TODO: Bigints */),
+	//	Float(f64),
+	//	Pair(Box<LispParseTree>, Box<LispParseTree>),
+	//	Lambda {
+	//		args: Vec<(SmallString, Option<LispType>)>,
+	//		ret_ty: Option<LispType>,
+	//		body: Box<LispParseTree>,
+	//	},
+	// }
+	pub enum LispObject<'a> {}
 }
