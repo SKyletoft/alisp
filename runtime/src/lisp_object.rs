@@ -2,7 +2,7 @@ use std::{collections::VecDeque, fmt};
 
 pub type SmallString = smallstr::SmallString<[u8; 23]>;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, derive_more::From)]
 pub enum LispObject {
 	Atom(SmallString),
 	Integer(i32 /* TODO: Bigints */),
@@ -15,12 +15,6 @@ pub enum LispObject {
 	},
 }
 
-impl From<SmallString> for LispObject {
-	fn from(s: SmallString) -> Self {
-		LispObject::Atom(s)
-	}
-}
-
 impl From<String> for LispObject {
 	fn from(s: String) -> Self {
 		LispObject::Atom(s.into())
@@ -30,18 +24,6 @@ impl From<String> for LispObject {
 impl From<&str> for LispObject {
 	fn from(s: &str) -> Self {
 		LispObject::Atom(s.into())
-	}
-}
-
-impl From<i32> for LispObject {
-	fn from(n: i32) -> Self {
-		LispObject::Integer(n)
-	}
-}
-
-impl From<f64> for LispObject {
-	fn from(n: f64) -> Self {
-		LispObject::Float(n)
 	}
 }
 
@@ -181,7 +163,7 @@ impl LispObject {
 	}
 }
 
-#[derive(Debug, PartialEq, Clone, Hash)]
+#[derive(Debug, PartialEq, Clone, Hash, derive_more::From)]
 pub enum LispType {
 	Named(SmallString),
 }
@@ -189,12 +171,6 @@ pub enum LispType {
 impl From<String> for LispType {
 	fn from(s: String) -> Self {
 		LispType::Named(s.into())
-	}
-}
-
-impl From<SmallString> for LispType {
-	fn from(s: SmallString) -> Self {
-		LispType::Named(s)
 	}
 }
 
