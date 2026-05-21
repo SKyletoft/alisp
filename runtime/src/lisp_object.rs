@@ -1,13 +1,15 @@
 use std::{collections::VecDeque, fmt};
 
+pub type SmallString = smallstr::SmallString<[u8; 23]>;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum LispObject {
-	Atom(String),
+	Atom(SmallString),
 	Integer(i32 /* TODO: Bigints */),
 	Float(f64),
 	Pair(Box<LispObject>, Box<LispObject>),
 	Lambda {
-		args: Vec<(String, Option<LispType>)>,
+		args: Vec<(SmallString, Option<LispType>)>,
 		ret_ty: Option<LispType>,
 		body: Box<LispObject>,
 	},
@@ -15,18 +17,24 @@ pub enum LispObject {
 
 #[derive(Debug, PartialEq, Clone, Hash)]
 pub enum LispType {
-	Named(String),
+	Named(SmallString),
+}
+
+impl From<SmallString> for LispObject {
+	fn from(s: SmallString) -> Self {
+		LispObject::Atom(s)
+	}
 }
 
 impl From<String> for LispObject {
 	fn from(s: String) -> Self {
-		LispObject::Atom(s)
+		LispObject::Atom(s.into())
 	}
 }
 
 impl From<&str> for LispObject {
 	fn from(s: &str) -> Self {
-		LispObject::Atom(s.to_string())
+		LispObject::Atom(s.into())
 	}
 }
 
@@ -50,7 +58,7 @@ impl From<(LispObject, LispObject)> for LispObject {
 
 impl<T: Into<LispObject>> From<Vec<T>> for LispObject {
 	fn from(v: Vec<T>) -> Self {
-		let nil = LispObject::Atom("nil".to_string());
+		let nil = LispObject::Atom("nil".into());
 		v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
 			LispObject::Pair(Box::new(obj), Box::new(acc))
 		})
@@ -129,7 +137,7 @@ fn write_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispObject) -> fmt::Result {
 
 impl<T: Into<LispObject>> From<VecDeque<T>> for LispObject {
 	fn from(v: VecDeque<T>) -> Self {
-		let nil = LispObject::Atom("nil".to_string());
+		let nil = LispObject::Atom("nil".into());
 		v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
 			LispObject::Pair(Box::new(obj), Box::new(acc))
 		})

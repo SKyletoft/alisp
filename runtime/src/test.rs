@@ -1,4 +1,4 @@
-use crate::LispObject;
+use crate::lisp_object::LispObject;
 
 #[test]
 fn hi() {
@@ -34,7 +34,7 @@ fn fib() {
 }
 
 fn check_list(list: &LispObject, expected: &[i32]) {
-	use crate::LispObject::*;
+	use crate::lisp_object::LispObject::*;
 	match (list, expected) {
 		(Atom(s), []) if s == "nil" => {}
 		(Pair(Integer(n), cdr), [first, rest @ ..]) if n == first => {
@@ -97,7 +97,7 @@ fn display_proper_list() {
 
 #[test]
 fn display_improper_list() {
-	use crate::LispObject::*;
+	use crate::lisp_object::LispObject::*;
 	let list = Pair(Box::new(Integer(1)), Box::new(Integer(2)));
 	assert_eq!(format!("{list}"), "'(1 . 2)");
 }

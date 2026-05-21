@@ -1,12 +1,17 @@
-use crate::lisp_object::LispObject;
+use crate::lisp_object::{LispObject, SmallString};
 
-type Env = std::collections::HashMap<String, LispObject>;
+type Env = std::collections::HashMap<SmallString, LispObject>;
 
 pub fn eval(obj: &LispObject, env: &mut Env) -> LispObject {
 	match obj {
 		LispObject::Pair(func, args) => {
 			let mut args = args.as_ref().clone();
-			let LispObject::Lambda { args, ret_ty: _, body } = eval(func, env) else {
+			let LispObject::Lambda {
+				args,
+				ret_ty: _,
+				body,
+			} = eval(func, env)
+			else {
 				panic!("Type error: {func} is not a function")
 			};
 			*body

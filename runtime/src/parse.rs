@@ -8,7 +8,7 @@ use nom::{
 	sequence::pair,
 };
 
-use crate::lisp_object::{LispObject, LispType};
+use crate::lisp_object::{LispObject, LispType, SmallString};
 
 pub fn parse(code: &str) -> Result<LispObject, ()> {
 	match parse_object(code) {
@@ -109,7 +109,7 @@ fn parse_list<const OPEN: char, const CLOSE: char>(input: &str) -> IResult<&str,
 
 fn parse_argument(
 	obj: LispObject,
-) -> Result<(String, Option<LispType>), nom::Err<nom::error::Error<&'static str>>> {
+) -> Result<(SmallString, Option<LispType>), nom::Err<nom::error::Error<&'static str>>> {
 	match obj {
 		LispObject::Atom(name) => Ok((name, None)),
 		LispObject::Pair(LispObject::Atom(name), LispObject::Pair(LispObject::Atom(ty), rest))

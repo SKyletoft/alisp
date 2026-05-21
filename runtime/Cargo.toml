@@ -1,0 +1,10 @@
+[package]
+name = "runtime"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+smallstr = { path = "../smallstr", features = [ "union", "deref_patterns" ] }
+smallvec = { version = "1.15", features = [ "union", "const_generics", "const_new" ] }
+nom = "8.0"
