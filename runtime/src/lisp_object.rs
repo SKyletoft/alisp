@@ -1,5 +1,5 @@
 pub use parse_tree::{LispParseTree, LispType};
-pub use runtime_object::{LispObject, ObjectReference};
+pub use runtime_object::{Env, LispObject, ObjectReference};
 
 pub type SmallString = smallstr::SmallString<[u8; 23]>;
 
@@ -66,7 +66,11 @@ mod parse_tree {
 			LispParseTree::Integer(n) => write!(f, "{n}"),
 			LispParseTree::Float(n) => write!(f, "{n}"),
 			LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
-			LispParseTree::Lambda { params, ret_ty, body } => {
+			LispParseTree::Lambda {
+				params,
+				ret_ty,
+				body,
+			} => {
 				write!(f, "(λ [")?;
 				for (i, (name, ty)) in params.iter().enumerate() {
 					if i > 0 {
@@ -185,33 +189,59 @@ mod parse_tree {
 }
 
 mod runtime_object {
-	use std::marker::PhantomData;
+	use std::collections::HashMap;
 
-use super::{LispType, SmallString};
+	use super::{LispType, SmallString};
 
-	#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-	pub struct ObjectReference<'a>(usize, PhantomData<&'a ()>);
+	#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+	pub struct ObjectReference(usize);
 
-	// pub enum LispParseTree {
-	//	Atom(SmallString),
-	//	Integer(i32 /* TODO: Bigints */),
-	//	Float(f64),
-	//	Pair(Box<LispParseTree>, Box<LispParseTree>),
-	//	Lambda {
-	//		args: Vec<(SmallString, Option<LispType>)>,
-	//		ret_ty: Option<LispType>,
-	//		body: Box<LispParseTree>,
-	//	},
-	// }
-	pub enum LispObject<'a> {
+	pub enum LispObject {
 		Atom(SmallString),
 		Integer(i32),
 		Float(f64),
-		Pair(ObjectReference<'a>, ObjectReference<'a>),
+		Pair(ObjectReference, ObjectReference),
 		Lambda {
 			params: Vec<(SmallString, Option<LispType>)>,
 			ret_ty: Option<LispType>,
-			body: ObjectReference<'a>
+			body: ObjectReference,
+		},
+		Builtins {
+			f: Box<dyn Fn(LispObject, LispObject) -> LispObject>,
+		},
+	}
+
+	pub struct Env {
+		objects: HashMap<ObjectReference, LispObject>,
+		monotonic_object_count: usize,
+	}
+
+	impl Default for Env {
+		fn default() -> Self {
+			Self::new()
+		}
+	}
+
+	impl Env {
+		pub fn new() -> Self {
+			Self {
+				objects: HashMap::new(),
+				monotonic_object_count: 0,
+			}
+		}
+
+		pub fn create_object(&mut self) -> ObjectReference {
+			let ret = ObjectReference(self.monotonic_object_count);
+			self.monotonic_object_count = self
+				.monotonic_object_count
+				.checked_add(1)
+				.expect("Object reference count overflow!");
+			self.objects.insert(ret, LispObject::Atom("nil".into()));
+			ret
+		}
+
+		pub fn get(&self, reference: ObjectReference) -> &LispObject {
+			&self.objects[&reference]
 		}
 	}
 }

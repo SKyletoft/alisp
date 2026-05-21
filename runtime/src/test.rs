@@ -1,8 +1,8 @@
-use crate::{eval, lisp_object::LispParseTree, parse};
+use crate::{eval, lisp_object::{Env, LispParseTree}, parse};
 
 pub fn eval(code: &str) -> LispParseTree {
 	let parsed = parse::parse(code).unwrap();
-	let mut env = eval::new_env();
+	let mut env = Env::new();
 	eval::eval(&parsed, &mut env).unwrap()
 }
 
