@@ -1,6 +1,4 @@
-use crate::lisp_object::{LispParseTree, LispType, SmallString};
-
-type Env = std::collections::HashMap<SmallString, LispParseTree>;
+use crate::lisp_object::{LispParseTree, LispType, SmallString, Env};
 
 #[derive(Debug, derive_more::Display, derive_more::Error)]
 pub enum RuntimeError {
@@ -58,15 +56,11 @@ pub fn eval(obj: &LispParseTree, env: &mut Env) -> Result<LispParseTree, Runtime
 			type_guard(&ret_ty, &ret.type_of())?;
 			ret
 		}
-		LispParseTree::Atom(atom) => env
-			.get(atom)
-			.cloned()
-			.ok_or(RuntimeError::UndefinedVariable)?,
+		// LispParseTree::Atom(atom) => env
+		//	.get(atom)
+		//	.cloned()
+		//	.ok_or(RuntimeError::UndefinedVariable)?,
 		_ => obj.clone(),
 	};
 	Ok(res)
-}
-
-pub fn new_env() -> Env {
-	[].into_iter().collect()
 }
