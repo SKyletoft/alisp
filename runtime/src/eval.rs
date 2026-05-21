@@ -17,6 +17,16 @@ pub enum RuntimeError {
 	NoCurrying,
 }
 
+fn type_guard(a: &Option<LispType>, b: &Option<LispType>) -> Result<(), RuntimeError> {
+	match (a, b) {
+		(Some(x), Some(y)) if x != y => Err(RuntimeError::TypeError {
+			expected: a.clone(),
+			actual: b.clone(),
+		}),
+		_ => Ok(()),
+	}
+}
+
 pub fn eval(obj: &LispParseTree, env: &mut Env) -> Result<LispParseTree, RuntimeError> {
 	let res = match obj {
 		LispParseTree::Pair(func, _args) => {
