@@ -1,4 +1,8 @@
-use runtime::{eval, lisp_object::LispParseTree, parse};
+use runtime::{
+	eval,
+	lisp_object::{Env, LispParseTree},
+	parse,
+};
 
 fn main() {
 	let res = eval("(print \"Hello world\")");
@@ -7,6 +11,6 @@ fn main() {
 
 pub fn eval(code: &str) -> LispParseTree {
 	let parsed = parse::parse(code).unwrap();
-	let mut env = eval::new_env();
+	let mut env = Env::new().unwrap();
 	eval::eval(&parsed, &mut env).unwrap()
 }

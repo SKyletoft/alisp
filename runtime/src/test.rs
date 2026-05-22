@@ -2,7 +2,7 @@ use crate::{eval, lisp_object::{Env, LispParseTree}, parse};
 
 pub fn eval(code: &str) -> LispParseTree {
 	let parsed = parse::parse(code).unwrap();
-	let mut env = Env::new();
+	let mut env = Env::new().unwrap();
 	eval::eval(&parsed, &mut env).unwrap()
 }
 

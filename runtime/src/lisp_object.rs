@@ -189,49 +189,55 @@ mod parse_tree {
 }
 
 mod runtime_object {
-	use std::collections::HashMap;
+	use std::{
+		collections::HashMap,
+		marker::PhantomData,
+		sync::atomic::{AtomicBool, Ordering},
+	};
 
 	use super::{LispType, SmallString};
 
 	#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-	pub struct ObjectReference(usize);
+	pub struct ObjectReference<'a, const N: usize = 0>(usize, PhantomData<&'a ()>);
 
-	pub enum LispObject {
+	pub enum LispObject<'a, const N: usize = 0> {
 		Atom(SmallString),
 		Integer(i32),
 		Float(f64),
-		Pair(ObjectReference, ObjectReference),
+		Pair(ObjectReference<'a, N>, ObjectReference<'a, N>),
 		Lambda {
 			params: Vec<(SmallString, Option<LispType>)>,
 			ret_ty: Option<LispType>,
-			body: ObjectReference,
+			body: ObjectReference<'a, N>,
 		},
 		Builtins {
-			f: Box<dyn Fn(LispObject, LispObject) -> LispObject>,
+			f: Box<dyn Fn(LispObject<'a, N>, LispObject<'a, N>) -> LispObject<'a, N>>,
 		},
 	}
 
-	pub struct Env {
-		objects: HashMap<ObjectReference, LispObject>,
+	pub struct Env<'a, const N: usize = 0> {
+		objects: HashMap<ObjectReference<'a, N>, LispObject<'a, N>>,
 		monotonic_object_count: usize,
 	}
+	static ENV_IN_USE: [AtomicBool; 64] = unsafe { std::mem::transmute([false; 64]) };
 
-	impl Default for Env {
-		fn default() -> Self {
-			Self::new()
-		}
-	}
-
-	impl Env {
-		pub fn new() -> Self {
-			Self {
-				objects: HashMap::new(),
-				monotonic_object_count: 0,
+	impl<'a, const N: usize> Env<'a, N> {
+		pub fn new() -> Result<Self, ()> {
+			if ENV_IN_USE[N].swap(true, Ordering::SeqCst) {
+				Err(())
+			} else {
+				Ok(Self {
+					objects: HashMap::new(),
+					monotonic_object_count: 0,
+				})
 			}
 		}
 
-		pub fn create_object(&mut self) -> ObjectReference {
-			let ret = ObjectReference(self.monotonic_object_count);
+		pub fn create_object(&mut self) -> ObjectReference<'a, N> {
+			let ret = {
+				let id = self.monotonic_object_count;
+				ObjectReference(id, PhantomData)
+			};
 			self.monotonic_object_count = self
 				.monotonic_object_count
 				.checked_add(1)
@@ -240,8 +246,20 @@ mod runtime_object {
 			ret
 		}
 
-		pub fn get(&self, reference: ObjectReference) -> &LispObject {
+		pub fn get(&self, reference: ObjectReference<'a, N>) -> &LispObject<'a, N> {
 			&self.objects[&reference]
+		}
+
+		pub fn get_mut(&mut self, reference: ObjectReference<'a, N>) -> &mut LispObject<'a, N> {
+			self.objects
+				.get_mut(&reference)
+				.expect("References from the same Env must be valid")
+		}
+	}
+
+	impl<'a, const N: usize> Drop for Env<'a, N> {
+		fn drop(&mut self) {
+			ENV_IN_USE[N].store(false, Ordering::SeqCst);
 		}
 	}
 }

@@ -1,4 +1,4 @@
-use crate::lisp_object::{LispParseTree, LispType, SmallString, Env};
+use crate::lisp_object::{Env, LispParseTree, LispType};
 
 #[derive(Debug, derive_more::Display, derive_more::Error)]
 pub enum RuntimeError {
@@ -25,7 +25,7 @@ fn type_guard(a: &Option<LispType>, b: &Option<LispType>) -> Result<(), RuntimeE
 	}
 }
 
-pub fn eval(obj: &LispParseTree, env: &mut Env) -> Result<LispParseTree, RuntimeError> {
+pub fn eval(obj: &LispParseTree, env: &mut Env<'_>) -> Result<LispParseTree, RuntimeError> {
 	let res = match obj {
 		LispParseTree::Pair(func, args) => {
 			let mut args = args.as_ref().clone();
