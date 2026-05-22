@@ -195,7 +195,7 @@ mod runtime_object {
 		sync::atomic::{AtomicBool, Ordering},
 	};
 
-	use super::{LispType, SmallString};
+	use super::{LispParseTree, LispType, SmallString};
 
 	#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 	pub struct ObjectReference<'a, const N: usize = 0>(usize, PhantomData<&'a ()>);
@@ -254,6 +254,50 @@ mod runtime_object {
 			self.objects
 				.get_mut(&reference)
 				.expect("References from the same Env must be valid")
+		}
+
+		pub fn from_parse_object(
+			parse_object: LispParseTree,
+			env: &mut Env<'a>,
+		) -> ObjectReference<'a> {
+			match parse_object {
+				LispParseTree::Atom(s) => {
+					let r = env.create_object();
+					*env.get_mut(r) = LispObject::Atom(s);
+					r
+				}
+				LispParseTree::Integer(i) => {
+					let r = env.create_object();
+					*env.get_mut(r) = LispObject::Integer(i);
+					r
+				}
+				LispParseTree::Float(f) => {
+					let r = env.create_object();
+					*env.get_mut(r) = LispObject::Float(f);
+					r
+				}
+				LispParseTree::Pair(car, cdr) => {
+					let car = Self::from_parse_object(*car, env);
+					let cdr = Self::from_parse_object(*cdr, env);
+					let r = env.create_object();
+					*env.get_mut(r) = LispObject::Pair(car, cdr);
+					r
+				}
+				LispParseTree::Lambda {
+					params,
+					ret_ty,
+					body,
+				} => {
+					let body = Self::from_parse_object(*body, env);
+					let r = env.create_object();
+					*env.get_mut(r) = LispObject::Lambda {
+						params,
+						ret_ty,
+						body,
+					};
+					r
+				}
+			}
 		}
 	}
 
