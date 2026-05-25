@@ -1,3 +1,5 @@
+use smallvec::smallvec;
+
 use crate::{eval, lisp_object::{Env, LispParseTree}, parse};
 
 pub fn eval(code: &str) -> LispParseTree {
@@ -112,7 +114,7 @@ fn display_nested_list() {
 #[test]
 fn display_lambda() {
 	let lambda = LispParseTree::Lambda {
-		params: vec![("x".into(), None)],
+		params: smallvec![("x".into(), None)],
 		ret_ty: None,
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -122,7 +124,7 @@ fn display_lambda() {
 #[test]
 fn display_lambda_multi_arg() {
 	let lambda = LispParseTree::Lambda {
-		params: vec![("x".into(), None), ("y".into(), None)],
+		params: smallvec![("x".into(), None), ("y".into(), None)],
 		ret_ty: None,
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -133,7 +135,7 @@ fn display_lambda_multi_arg() {
 fn display_partially_typed_lambda_1() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: vec![("x".into(), Some(LispType::Named("i32".into())))],
+		params: smallvec![("x".into(), Some(LispType::Integer))],
 		ret_ty: None,
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -144,8 +146,8 @@ fn display_partially_typed_lambda_1() {
 fn display_partially_typed_lambda_2() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: vec![("x".into(), None)],
-		ret_ty: Some(LispType::Named("i32".into())),
+		params: smallvec![("x".into(), None)],
+		ret_ty: Some(LispType::Integer),
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
 	assert_eq!(format!("{lambda}"), "(λ [x] -> i32 (body))");
@@ -155,11 +157,8 @@ fn display_partially_typed_lambda_2() {
 fn display_partially_typed_lambda_3() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: vec![
-			("x".into(), None),
-			("y".into(), Some(LispType::Named("i32".into()))),
-		],
-		ret_ty: Some(LispType::Named("i32".into())),
+		params: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
+		ret_ty: Some(LispType::Integer),
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
 	assert_eq!(format!("{lambda}"), "(λ [x (y i32)] -> i32 (body))");
@@ -169,10 +168,7 @@ fn display_partially_typed_lambda_3() {
 fn display_partially_typed_lambda_4() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: vec![
-			("x".into(), None),
-			("y".into(), Some(LispType::Named("i32".into()))),
-		],
+		params: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
 		ret_ty: None,
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
@@ -183,8 +179,8 @@ fn display_partially_typed_lambda_4() {
 fn display_typed_lambda() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: vec![("x".into(), Some(LispType::Named("i32".into())))],
-		ret_ty: Some(LispType::Named("i32".into())),
+		params: smallvec![("x".into(), Some(LispType::Integer))],
+		ret_ty: Some(LispType::Integer),
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};
 	assert_eq!(format!("{lambda}"), "(λ [(x i32)] -> i32 (body))");
@@ -194,10 +190,7 @@ fn display_typed_lambda() {
 fn display_partial_typed_lambda() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: vec![
-			("x".into(), Some(LispType::Named("i32".into()))),
-			("y".into(), None),
-		],
+		params: smallvec![("x".into(), Some(LispType::Integer)), ("y".into(), None),],
 		ret_ty: Some(LispType::Named("bool".into())),
 		body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 	};

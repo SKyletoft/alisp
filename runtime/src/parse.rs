@@ -8,6 +8,8 @@ use nom::{
 	sequence::pair,
 };
 
+use smallvec::SmallVec;
+
 use crate::lisp_object::{LispParseTree, LispType, SmallString};
 
 pub fn parse(code: &str) -> Result<LispParseTree, ()> {
@@ -55,15 +57,17 @@ fn is_atom_start(c: char) -> bool {
 		.contains(&c)
 }
 
-fn parse_atom(input: &str) -> IResult<&str, LispParseTree> {
-	map(
-		recognize(pair(
-			satisfy(is_atom_start),
-			many0(satisfy(is_atom_continue)),
-		)),
-		|s: &str| LispParseTree::Atom(s.into()),
-	)
+fn parse_identifier(input: &str) -> IResult<&str, &str> {
+	recognize(pair(
+		satisfy(is_atom_start),
+		many0(satisfy(is_atom_continue)),
+	))
 	.parse(input)
+}
+
+fn parse_atom(input: &str) -> IResult<&str, LispParseTree> {
+	let (rest, id) = parse_identifier(input)?;
+	Ok((rest, LispParseTree::Atom(id.into())))
 }
 
 fn parse_integer(input: &str) -> IResult<&str, LispParseTree> {
@@ -107,15 +111,30 @@ fn parse_list<const OPEN: char, const CLOSE: char>(input: &str) -> IResult<&str,
 	Ok((rem, list.into()))
 }
 
+fn parse_type(input: &str) -> IResult<&str, LispType> {
+	match input.as_bytes() {
+		[b'i', b'3', b'2', ..] => Ok((&input[3..], LispType::Integer)),
+		[b'f', b'6', b'4', ..] => Ok((&input[3..], LispType::Float)),
+		_ => parse_identifier(input).map(|(r, id)| (r, LispType::Named(id.into()))),
+	}
+}
+
 fn parse_argument(
 	obj: LispParseTree,
 ) -> Result<(SmallString, Option<LispType>), nom::Err<nom::error::Error<&'static str>>> {
 	match obj {
 		LispParseTree::Atom(name) => Ok((name, None)),
-		LispParseTree::Pair(LispParseTree::Atom(name), LispParseTree::Pair(LispParseTree::Atom(ty), rest))
-			if *rest == LispParseTree::Atom("nil".into()) =>
-		{
-			Ok((name, Some(LispType::Named(ty))))
+		LispParseTree::Pair(
+			LispParseTree::Atom(name),
+			LispParseTree::Pair(LispParseTree::Atom(ty), rest),
+		) if *rest == LispParseTree::Atom("nil".into()) => {
+			let Ok(("", ty)) = parse_type(&ty) else {
+				return Err(nom::Err::Error(nom::error::Error::new(
+					"Unparseable type name",
+					nom::error::ErrorKind::Tag,
+				)));
+			};
+			Ok((name, Some(ty)))
 		}
 		_ => Err(nom::Err::Error(nom::error::Error::new(
 			"Non-argument in argument position",
@@ -139,7 +158,7 @@ fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
 	let args = args
 		.map(parse_argument)
 		.take(10_000)
-		.collect::<Result<Vec<_>, _>>()?;
+		.collect::<Result<SmallVec<_>, _>>()?;
 	let Some(body_or_arrow) = dbg!(list.next()) else {
 		panic!();
 	};
@@ -148,16 +167,23 @@ fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
 			let Some(LispParseTree::Atom(type_name)) = dbg!(list.next()) else {
 				panic!();
 			};
-			(Some(LispType::Named(type_name)), Box::new(list))
+			let (_, ty) = parse_type(&type_name).unwrap();
+			(Some(ty), Box::new(list))
 		}
 		body => (None, Box::new(vec![body].into())),
 	};
-	let ret = LispParseTree::Lambda { params: args, ret_ty, body };
+	let ret = LispParseTree::Lambda {
+		params: args,
+		ret_ty,
+		body,
+	};
 	Ok((rem, ret))
 }
 
 #[cfg(test)]
 mod test {
+	use smallvec::smallvec;
+
 	use crate::lisp_object::LispParseTree;
 
 	#[test]
@@ -191,7 +217,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![],
+				params: smallvec![],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -204,7 +230,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![("x".into(), None)],
+				params: smallvec![("x".into(), None)],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -219,10 +245,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![
-					("x".into(), Some(LispType::Named("i32".into()))),
-					("y".into(), None),
-				],
+				params: smallvec![("x".into(), Some(LispType::Integer)), ("y".into(), None),],
 				ret_ty: Some(LispType::Named("bool".into())),
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -237,8 +260,8 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![("x".into(), Some(LispType::Named("i32".into())))],
-				ret_ty: Some(LispType::Named("i32".into())),
+				params: smallvec![("x".into(), Some(LispType::Integer))],
+				ret_ty: Some(LispType::Integer),
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
 		);
@@ -252,10 +275,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![
-					("x".into(), None),
-					("y".into(), Some(LispType::Named("i32".into()))),
-				],
+				params: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -270,11 +290,8 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![
-					("x".into(), None),
-					("y".into(), Some(LispType::Named("i32".into()))),
-				],
-				ret_ty: Some(LispType::Named("i32".into())),
+				params: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
+				ret_ty: Some(LispType::Integer),
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
 		);
@@ -288,8 +305,8 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![("x".into(), None)],
-				ret_ty: Some(LispType::Named("i32".into())),
+				params: smallvec![("x".into(), None)],
+				ret_ty: Some(LispType::Integer),
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
 		);
@@ -303,7 +320,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![("x".into(), Some(LispType::Named("i32".into())))],
+				params: smallvec![("x".into(), Some(LispType::Integer))],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}
@@ -316,7 +333,7 @@ mod test {
 		assert_eq!(
 			result,
 			LispParseTree::Lambda {
-				params: vec![("x".into(), None), ("y".into(), None)],
+				params: smallvec![("x".into(), None), ("y".into(), None)],
 				ret_ty: None,
 				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
 			}

@@ -6,6 +6,8 @@ pub type SmallString = smallstr::SmallString<[u8; 23]>;
 mod parse_tree {
 	use std::{collections::VecDeque, fmt};
 
+	use smallvec::SmallVec;
+
 	use super::SmallString;
 
 	#[derive(Debug, PartialEq, Clone, derive_more::From)]
@@ -15,7 +17,7 @@ mod parse_tree {
 		Float(f64),
 		Pair(Box<LispParseTree>, Box<LispParseTree>),
 		Lambda {
-			params: Vec<(SmallString, Option<LispType>)>,
+			params: SmallVec<[(SmallString, Option<LispType>); 1]>,
 			ret_ty: Option<LispType>,
 			body: Box<LispParseTree>,
 		},
@@ -149,7 +151,8 @@ mod parse_tree {
 	}
 
 	impl LispParseTree {
-		pub fn peek(&self) -> Option<&LispParseTree> {
+		#[allow(dead_code)]
+		pub(crate) fn peek(&self) -> Option<&LispParseTree> {
 			match self {
 				LispParseTree::Atom(s) if s == "nil" => None,
 				LispParseTree::Pair(car, _) => Some(car),
@@ -157,7 +160,8 @@ mod parse_tree {
 			}
 		}
 
-		pub fn type_of(&self) -> Option<LispType> {
+		#[allow(dead_code)]
+		pub(crate) fn type_of(&self) -> Option<LispType> {
 			let res = match self {
 				LispParseTree::Atom(_) => "atom".into(),
 				LispParseTree::Integer(_) => "i32".into(),
@@ -173,6 +177,16 @@ mod parse_tree {
 	pub enum LispType {
 		#[display("{_0}")]
 		Named(SmallString),
+		#[display("atom")]
+		Atom,
+		#[display("i32")]
+		Integer,
+		#[display("f64")]
+		Float,
+		#[display("list")]
+		Pair,
+		#[display("function")]
+		Function,
 	}
 
 	impl From<String> for LispType {
@@ -283,20 +297,20 @@ mod runtime_object {
 					*env.get_mut(r) = LispObject::Pair(car, cdr);
 					r
 				}
-				LispParseTree::Lambda {
-					params,
+			LispParseTree::Lambda {
+				params,
+				ret_ty,
+				body,
+			} => {
+				let body = Self::from_parse_object(*body, env);
+				let r = env.create_object();
+				*env.get_mut(r) = LispObject::Lambda {
+					params: params.into_vec(),
 					ret_ty,
 					body,
-				} => {
-					let body = Self::from_parse_object(*body, env);
-					let r = env.create_object();
-					*env.get_mut(r) = LispObject::Lambda {
-						params,
-						ret_ty,
-						body,
-					};
-					r
-				}
+				};
+				r
+			}
 			}
 		}
 	}
