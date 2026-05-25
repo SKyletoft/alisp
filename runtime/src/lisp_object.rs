@@ -128,12 +128,10 @@ mod parse_tree {
 		}
 	}
 
-	impl Iterator for LispParseTree {
-		type Item = LispParseTree;
-
-		fn next(&mut self) -> Option<Self::Item> {
+	impl LispParseTree {
+		pub(crate) fn next(&mut self) -> Option<LispParseTree> {
 			match self {
-				LispParseTree::Atom("nil") => None,
+				LispParseTree::Atom(s) if s == "nil" => None,
 				LispParseTree::Pair(this, next) => {
 					let this = std::mem::replace(this.as_mut(), LispParseTree::Integer(0));
 					let next = std::mem::replace(next.as_mut(), LispParseTree::Integer(0));
@@ -147,9 +145,7 @@ mod parse_tree {
 				}
 			}
 		}
-	}
 
-	impl LispParseTree {
 		#[allow(dead_code)]
 		pub(crate) fn peek(&self) -> Option<&LispParseTree> {
 			match self {
@@ -169,6 +165,25 @@ mod parse_tree {
 				LispParseTree::Lambda { .. } => "function".into(),
 			};
 			Some(res)
+		}
+	}
+
+	impl IntoIterator for LispParseTree {
+		type IntoIter = LispParseTreeIterator;
+		type Item = LispParseTree;
+
+		fn into_iter(self) -> Self::IntoIter {
+			LispParseTreeIterator(self)
+		}
+	}
+
+	pub struct LispParseTreeIterator(LispParseTree);
+
+	impl Iterator for LispParseTreeIterator {
+		type Item = LispParseTree;
+
+		fn next(&mut self) -> Option<Self::Item> {
+			self.0.next()
 		}
 	}
 
