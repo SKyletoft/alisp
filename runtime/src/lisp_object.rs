@@ -23,6 +23,15 @@ mod parse_tree {
 		},
 	}
 
+	impl From<bool> for LispParseTree {
+		fn from(value: bool) -> Self {
+			match value {
+				true => "t".into(),
+				false => "nil".into(),
+			}
+		}
+	}
+
 	impl From<String> for LispParseTree {
 		fn from(s: String) -> Self {
 			LispParseTree::Atom(s.into())
