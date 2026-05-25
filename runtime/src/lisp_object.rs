@@ -18,7 +18,7 @@ mod parse_tree {
 		Pair(Box<LispParseTree>, Box<LispParseTree>),
 		// Array(Box<[LispParseTree]>),
 		// Map(Box<[(SmallString, LispParseTree)]>),
-		// String(SmallString),
+		String(String),
 		Lambda {
 			params: SmallVec<[(SmallString, Option<LispType>); 1]>,
 			ret_ty: Option<LispType>,
@@ -32,12 +32,6 @@ mod parse_tree {
 				true => "t".into(),
 				false => "nil".into(),
 			}
-		}
-	}
-
-	impl From<String> for LispParseTree {
-		fn from(s: String) -> Self {
-			LispParseTree::Atom(s.into())
 		}
 	}
 
@@ -79,6 +73,7 @@ mod parse_tree {
 					LispParseTree::Integer(n) => write!(f, "{n}"),
 					LispParseTree::Float(n) => write!(f, "{n}"),
 					LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
+					LispParseTree::String(s) => write!(f, "{s:?}"),
 					LispParseTree::Lambda {
 						params,
 						ret_ty,
@@ -180,6 +175,7 @@ mod parse_tree {
 				LispParseTree::Float(_) => LispType::Float,
 				LispParseTree::Pair(..) => LispType::Pair,
 				LispParseTree::Lambda { .. } => LispType::Function,
+				LispParseTree::String(_) => LispType::String,
 			};
 			Some(res)
 		}
@@ -218,6 +214,8 @@ mod parse_tree {
 		Pair,
 		#[display("function")]
 		Function,
+		#[display("string")]
+		String,
 	}
 
 	impl From<String> for LispType {
@@ -296,6 +294,7 @@ mod runtime_object {
 				LispParseTree::Atom(s) => env.create_object(LispObject::Atom(s)),
 				LispParseTree::Integer(i) => env.create_object(LispObject::Integer(i)),
 				LispParseTree::Float(f) => env.create_object(LispObject::Float(f)),
+				LispParseTree::String(_) => todo!(),
 				LispParseTree::Pair(car, cdr) => {
 					let car = Self::from_parse_object(*car, env);
 					let cdr = Self::from_parse_object(*cdr, env);
