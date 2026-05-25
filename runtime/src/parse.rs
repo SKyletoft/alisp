@@ -407,4 +407,12 @@ mod test {
 			}
 		);
 	}
+
+	#[test]
+	fn string() {
+		let code = "\"hi\"";
+		let expected = LispParseTree::String("hi".into());
+		let result = super::parse(code);
+		assert_eq!(Ok(expected), result);
+	}
 }
