@@ -1,7 +1,6 @@
 use nom::{
 	IResult, Parser,
 	branch::alt,
-	bytes::complete::tag,
 	character::complete::{char, digit1, multispace0, satisfy},
 	combinator::{map, opt, recognize},
 	multi::many0,
@@ -21,12 +20,16 @@ pub fn parse(code: &str) -> Result<LispParseTree, String> {
 }
 
 #[allow(clippy::result_unit_err)]
-pub fn parse_many<'a>(
-	code: &'a str,
-) -> Result<SmallVec<[LispParseTree; 1]>, nom::Err<nom::error::Error<&'a str>>> {
+pub fn parse_many(
+	code: &str,
+) -> Result<SmallVec<[LispParseTree; 1]>, nom::Err<nom::error::Error<&str>>> {
 	let mut ret = SmallVec::new();
 	let mut remaining = code;
 	while !remaining.is_empty() {
+		(remaining, _) = multispace0(remaining)?;
+		if remaining.is_empty() {
+			break;
+		}
 		let obj;
 		(remaining, obj) = parse_object(remaining)?;
 		ret.push(obj);
@@ -79,7 +82,7 @@ fn parse_atom(input: &str) -> IResult<&str, LispParseTree> {
 }
 
 fn parse_integer(input: &str) -> IResult<&str, LispParseTree> {
-	// [0..9]+
+	// -?[0..9]+
 	map(recognize(pair(opt(char('-')), digit1)), |digits: &str| {
 		LispParseTree::Integer(digits.parse().expect("Nom should've validated this?"))
 	})
@@ -87,17 +90,12 @@ fn parse_integer(input: &str) -> IResult<&str, LispParseTree> {
 }
 
 fn parse_float(input: &str) -> IResult<&str, LispParseTree> {
-	// [0..9]+.[0..9]*
-	let parser = |s| -> IResult<&str, (&str, Option<&str>)> {
-		let (rem, int) = digit1.parse(s)?;
-		let (rem, _) = tag(".")(rem)?;
-		let (rem, frac) = opt(digit1).parse(rem)?;
-		Ok(dbg!((rem, (int, frac))))
-	};
-	let (rem, res) = dbg!(recognize(parser).parse(input)?);
-	let n = LispParseTree::Float(res.parse().expect("Nom should've validated this?"));
-
-	Ok((rem, n))
+	// -?[0..9]+.[0..9]*
+	map(
+		recognize((opt(char('-')), digit1, char('.'), opt(digit1))),
+		|digits: &str| LispParseTree::Float(digits.parse().expect("Nom should've validated this?")),
+	)
+	.parse(input)
 }
 
 fn parse_list<const OPEN: char, const CLOSE: char>(input: &str) -> IResult<&str, LispParseTree> {
@@ -197,16 +195,38 @@ fn err(msg: &str) -> nom::Err<nom::error::Error<&str>> {
 
 #[cfg(test)]
 mod test {
+	use quickcheck_macros::quickcheck;
 	use smallvec::smallvec;
 
 	use crate::lisp_object::LispParseTree;
 
 	#[test]
 	fn neg_numbers() {
-		let code = "-5";
-		let expected = LispParseTree::Integer(-5);
+		let code = "(-5 -2.44)";
+		let expected = LispParseTree::from(vec![
+			LispParseTree::Integer(-5),
+			LispParseTree::Float(-2.44),
+		]);
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
+	}
+
+	#[quickcheck]
+	fn parse_number(n: f64) {
+		if !n.is_normal() {
+			return;
+		}
+		let code = if n.fract() == 0.0 {
+			format!("{n:.1}")
+		} else {
+			format!("{n}")
+		};
+		let result = super::parse(&code);
+		match result {
+			Ok(LispParseTree::Float(m)) if (n - m).abs() <= f64::EPSILON => {}
+			Ok(LispParseTree::Float(m)) => panic!("{m} is too far from {n}"),
+			_ => panic!("Didn't parse {code:?} as float"),
+		}
 	}
 
 	#[test]
