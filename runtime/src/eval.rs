@@ -13,6 +13,8 @@ pub enum RuntimeError {
 	TooManyArguments,
 	#[display("alisp doesn't support curried functions (= not enough arguments in function call)")]
 	NoCurrying,
+	#[display("Division by zero")]
+	DivisionByZero,
 }
 
 fn type_guard(a: &Option<LispType>, b: &Option<LispType>) -> Result<(), RuntimeError> {
