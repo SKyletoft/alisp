@@ -50,8 +50,74 @@ mod parse_tree {
 		}
 	}
 
+	impl<T: Into<LispParseTree>> From<VecDeque<T>> for LispParseTree {
+		fn from(v: VecDeque<T>) -> Self {
+			let nil = LispParseTree::Atom("nil".into());
+			v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
+				LispParseTree::Pair(Box::new(obj), Box::new(acc))
+			})
+		}
+	}
+
 	impl fmt::Display for LispParseTree {
 		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			fn write_elem(f: &mut fmt::Formatter<'_>, obj: &LispParseTree) -> fmt::Result {
+				match obj {
+					LispParseTree::Atom(s) => write!(f, "{s}"),
+					LispParseTree::Integer(n) => write!(f, "{n}"),
+					LispParseTree::Float(n) => write!(f, "{n}"),
+					LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
+					LispParseTree::Lambda {
+						params,
+						ret_ty,
+						body,
+					} => {
+						write!(f, "(λ [")?;
+						for (i, (name, ty)) in params.iter().enumerate() {
+							if i > 0 {
+								write!(f, " ")?;
+							}
+							match ty {
+								Some(ty) => write!(f, "({name} {ty})")?,
+								None => write!(f, "{name}")?,
+							}
+						}
+						write!(f, "]")?;
+						if let Some(ret_ty) = ret_ty {
+							write!(f, " -> {ret_ty}")?;
+						}
+						write!(f, " ")?;
+						write_elem(f, body)?;
+						write!(f, ")")
+					}
+				}
+			}
+
+			fn write_pair(
+				f: &mut fmt::Formatter<'_>,
+				car: &LispParseTree,
+				cdr: &LispParseTree,
+			) -> fmt::Result {
+				write!(f, "(")?;
+				write_elem(f, car)?;
+				write_cdr(f, cdr)?;
+				write!(f, ")")
+			}
+
+			fn write_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispParseTree) -> fmt::Result {
+				match cdr {
+					LispParseTree::Atom("nil") => Ok(()),
+					LispParseTree::Pair(car, cdr) => {
+						write!(f, " ")?;
+						write_elem(f, car)?;
+						write_cdr(f, cdr)
+					}
+					other => {
+						write!(f, " . ")?;
+						write_elem(f, other)
+					}
+				}
+			}
 			match self {
 				LispParseTree::Pair(car, cdr) => {
 					write!(f, "'")?;
@@ -59,73 +125,6 @@ mod parse_tree {
 				}
 				other => write_elem(f, other),
 			}
-		}
-	}
-
-	fn write_elem(f: &mut fmt::Formatter<'_>, obj: &LispParseTree) -> fmt::Result {
-		match obj {
-			LispParseTree::Atom(s) => write!(f, "{s}"),
-			LispParseTree::Integer(n) => write!(f, "{n}"),
-			LispParseTree::Float(n) => write!(f, "{n}"),
-			LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
-			LispParseTree::Lambda {
-				params,
-				ret_ty,
-				body,
-			} => {
-				write!(f, "(λ [")?;
-				for (i, (name, ty)) in params.iter().enumerate() {
-					if i > 0 {
-						write!(f, " ")?;
-					}
-					match ty {
-						Some(ty) => write!(f, "({name} {ty})")?,
-						None => write!(f, "{name}")?,
-					}
-				}
-				write!(f, "]")?;
-				if let Some(ret_ty) = ret_ty {
-					write!(f, " -> {ret_ty}")?;
-				}
-				write!(f, " ")?;
-				write_elem(f, body)?;
-				write!(f, ")")
-			}
-		}
-	}
-
-	fn write_pair(
-		f: &mut fmt::Formatter<'_>,
-		car: &LispParseTree,
-		cdr: &LispParseTree,
-	) -> fmt::Result {
-		write!(f, "(")?;
-		write_elem(f, car)?;
-		write_cdr(f, cdr)?;
-		write!(f, ")")
-	}
-
-	fn write_cdr(f: &mut fmt::Formatter<'_>, cdr: &LispParseTree) -> fmt::Result {
-		match cdr {
-			LispParseTree::Atom("nil") => Ok(()),
-			LispParseTree::Pair(car, cdr) => {
-				write!(f, " ")?;
-				write_elem(f, car)?;
-				write_cdr(f, cdr)
-			}
-			other => {
-				write!(f, " . ")?;
-				write_elem(f, other)
-			}
-		}
-	}
-
-	impl<T: Into<LispParseTree>> From<VecDeque<T>> for LispParseTree {
-		fn from(v: VecDeque<T>) -> Self {
-			let nil = LispParseTree::Atom("nil".into());
-			v.into_iter().map(Into::into).rfold(nil, |acc, obj| {
-				LispParseTree::Pair(Box::new(obj), Box::new(acc))
-			})
 		}
 	}
 
