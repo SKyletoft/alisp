@@ -7,7 +7,6 @@ use nom::{
 	multi::many0,
 	sequence::pair,
 };
-
 use smallvec::SmallVec;
 
 use crate::lisp_object::{LispParseTree, LispType, SmallString};
@@ -153,30 +152,28 @@ fn parse_argument(
 }
 
 fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
-	dbg!(input);
-	let (rem, mut list) = dbg!(parse_list::<'(', ')'>(input)?);
-	let Some(LispParseTree::Atom("lambda")) = dbg!(list.next()) else {
-		return Err(nom::Err::Error(nom::error::Error::new(
-			"lambda list was empty?",
-			nom::error::ErrorKind::Tag,
-		)));
+	let (rem, mut list) = parse_list::<'(', ')'>(input)?;
+	let Some(LispParseTree::Atom("lambda")) = list.next() else {
+		return Err(err("lambda list was empty?"));
 	};
-	let Some(args) = dbg!(list.next()) else {
-		panic!();
+	let Some(args) = list.next() else {
+		return Err(err("lambda must have an argument list"));
 	};
 	let args = args
 		.map(parse_argument)
 		.take(10_000)
 		.collect::<Result<SmallVec<_>, _>>()?;
-	let Some(body_or_arrow) = dbg!(list.next()) else {
-		panic!();
+	let Some(body_or_arrow) = list.next() else {
+		return Err(err("lambda must have a body"));
 	};
 	let (ret_ty, body) = match body_or_arrow {
 		LispParseTree::Atom("->") => {
-			let Some(LispParseTree::Atom(type_name)) = dbg!(list.next()) else {
-				panic!();
+			let Some(LispParseTree::Atom(type_name)) = list.next() else {
+				return Err(err("lambda return type expected after ->"));
 			};
-			let (_, ty) = parse_type(&type_name).unwrap();
+			let ty = parse_type(&type_name)
+				.map_err(|_| err("lambda return type is unparseable"))?
+				.1;
 			(Some(ty), Box::new(list))
 		}
 		body => (None, Box::new(vec![body].into())),
@@ -187,6 +184,10 @@ fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
 		body,
 	};
 	Ok((rem, ret))
+}
+
+fn err(msg: &str) -> nom::Err<nom::error::Error<&str>> {
+	nom::Err::Error(nom::error::Error::new(msg, nom::error::ErrorKind::Tag))
 }
 
 #[cfg(test)]
