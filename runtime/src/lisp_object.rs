@@ -16,10 +16,13 @@ mod parse_tree {
 		Integer(i32 /* TODO: Bigints */),
 		Float(f64),
 		Pair(Box<LispParseTree>, Box<LispParseTree>),
+		// Array(Box<[LispParseTree]>),
+		// Map(Box<[(SmallString, LispParseTree)]>),
+		// String(SmallString),
 		Lambda {
 			params: SmallVec<[(SmallString, Option<LispType>); 1]>,
 			ret_ty: Option<LispType>,
-			body: Box<LispParseTree>,
+			body: Vec<LispParseTree>,
 		},
 	}
 
@@ -96,7 +99,12 @@ mod parse_tree {
 							write!(f, " -> {ret_ty}")?;
 						}
 						write!(f, " ")?;
-						write_elem(f, body)?;
+						for (i, expr) in body.iter().enumerate() {
+							if i > 0 {
+								write!(f, " ")?;
+							}
+							write_elem(f, expr)?;
+						}
 						write!(f, ")")
 					}
 				}
@@ -298,7 +306,8 @@ mod runtime_object {
 					ret_ty,
 					body,
 				} => {
-					let body = Self::from_parse_object(*body, env);
+					let body_list: LispParseTree = body.into();
+					let body = Self::from_parse_object(body_list, env);
 					env.create_object(LispObject::Lambda {
 						params,
 						ret_ty,
@@ -795,7 +804,7 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 			LispParseTree::Lambda {
 				params: params.clone(),
 				ret_ty: ret_ty.clone(),
-				body: Box::new(body),
+				body: vec![body],
 			}
 		}
 		LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {

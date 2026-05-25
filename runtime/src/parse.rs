@@ -175,9 +175,13 @@ fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
 			let ty = parse_type(&type_name)
 				.map_err(|_| err("lambda return type is unparseable"))?
 				.1;
-			(Some(ty), Box::new(list))
+			(Some(ty), list.into_iter().collect())
 		}
-		body => (None, Box::new(vec![body].into())),
+		body => {
+			let mut body_vec = vec![body];
+			body_vec.extend(list.into_iter());
+			(None, body_vec)
+		}
 	};
 	let ret = LispParseTree::Lambda {
 		params: args,
@@ -238,7 +242,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![],
 				ret_ty: None,
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())].into(),
 			}
 		);
 	}
@@ -251,7 +255,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None)],
 				ret_ty: None,
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())],
 			}
 		);
 	}
@@ -266,7 +270,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), Some(LispType::Integer)), ("y".into(), None),],
 				ret_ty: Some(LispType::Named("bool".into())),
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())],
 			}
 		);
 	}
@@ -281,7 +285,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), Some(LispType::Integer))],
 				ret_ty: Some(LispType::Integer),
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())],
 			}
 		);
 	}
@@ -296,7 +300,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
 				ret_ty: None,
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())],
 			}
 		);
 	}
@@ -311,7 +315,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
 				ret_ty: Some(LispType::Integer),
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())],
 			}
 		);
 	}
@@ -326,7 +330,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None)],
 				ret_ty: Some(LispType::Integer),
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())],
 			}
 		);
 	}
@@ -341,7 +345,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), Some(LispType::Integer))],
 				ret_ty: None,
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())],
 			}
 		);
 	}
@@ -354,7 +358,32 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None), ("y".into(), None)],
 				ret_ty: None,
-				body: Box::new(vec![LispParseTree::Atom("body".into())].into()),
+				body: vec![LispParseTree::Atom("body".into())],
+			}
+		);
+	}
+
+	#[test]
+	fn lambda_two_statements() {
+		let result = super::parse("(lambda [x] (println x) (+ x 1))").unwrap();
+		assert_eq!(
+			result,
+			LispParseTree::Lambda {
+				params: smallvec![("x".into(), None)],
+				ret_ty: None,
+				body: vec![
+					vec![
+						LispParseTree::Atom("println".into()),
+						LispParseTree::Atom("x".into())
+					]
+					.into(),
+					vec![
+						LispParseTree::Atom("+".into()),
+						LispParseTree::Atom("x".into()),
+						LispParseTree::Integer(1)
+					]
+					.into()
+				],
 			}
 		);
 	}
