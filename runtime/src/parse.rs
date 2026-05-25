@@ -12,18 +12,27 @@ use smallvec::SmallVec;
 
 use crate::lisp_object::{LispParseTree, LispType, SmallString};
 
-pub fn parse(code: &str) -> Result<LispParseTree, ()> {
+#[allow(clippy::result_unit_err)]
+pub fn parse(code: &str) -> Result<LispParseTree, String> {
 	match parse_object(code) {
 		Ok(("", ret)) => Ok(ret),
-		Ok((s, _)) => {
-			eprintln!("Remaining text: {s}");
-			Err(())
-		}
-		e => {
-			let _ = dbg!(e);
-			Err(())
-		}
+		Ok((s, _)) => Err(format!("Remaining text: {s}")),
+		Err(e) => Err(format!("Inner error: {e:?}")),
 	}
+}
+
+#[allow(clippy::result_unit_err)]
+pub fn parse_many<'a>(
+	code: &'a str,
+) -> Result<SmallVec<[LispParseTree; 1]>, nom::Err<nom::error::Error<&'a str>>> {
+	let mut ret = SmallVec::new();
+	let mut remaining = code;
+	while !remaining.is_empty() {
+		let obj;
+		(remaining, obj) = parse_object(remaining)?;
+		ret.push(obj);
+	}
+	Ok(ret)
 }
 
 fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
