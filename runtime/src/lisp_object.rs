@@ -306,8 +306,10 @@ mod runtime_object {
 					ret_ty,
 					body,
 				} => {
-					let body_list: LispParseTree = body.into();
-					let body = Self::from_parse_object(body_list, env);
+					let body: Vec<ObjectReference<'a, N>> = body
+						.into_iter()
+						.map(|e| Self::from_parse_object(e, env))
+						.collect();
 					env.create_object(LispObject::Lambda {
 						params,
 						ret_ty,
@@ -339,7 +341,7 @@ mod runtime_object {
 		Lambda {
 			params: SmallVec<[(SmallString, Option<LispType>); 1]>,
 			ret_ty: Option<LispType>,
-			body: ObjectReference<'a, N>,
+			body: Vec<ObjectReference<'a, N>>,
 		},
 		BuiltinDyadic(BuiltinDyadicFn<'a, N>),
 		BuiltinMonadic(BuiltinMonadicFn<'a, N>),
@@ -400,7 +402,9 @@ mod runtime_object {
 					write!(f, " -> {ret_ty}")?;
 				}
 				write!(f, " ")?;
-				write_lisp_elem(f, env.get(*body), env)?;
+				for expr in body.iter() {
+					write_lisp_elem(f, env.get(*expr), env)?;
+				}
 				write!(f, ")")
 			}
 			LispObject::BuiltinDyadic(_) | LispObject::BuiltinMonadic(_) => {
@@ -800,11 +804,14 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 			ret_ty,
 			body,
 		} => {
-			let body = lisp_object_to_parse_tree(env.get(*body), env);
+			let body: Vec<LispParseTree> = body
+				.iter()
+				.map(|e| lisp_object_to_parse_tree(env.get(*e), env))
+				.collect();
 			LispParseTree::Lambda {
 				params: params.clone(),
 				ret_ty: ret_ty.clone(),
-				body: vec![body],
+				body,
 			}
 		}
 		LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {

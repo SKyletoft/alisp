@@ -52,7 +52,11 @@ pub fn eval<'a>(
 					if args_iter.get(env).next(env).is_some() {
 						return Err(RuntimeError::TooManyArguments);
 					}
-					let result = eval(body, env)?;
+					let result = body
+						.into_iter()
+						.map(|e| eval(e, env))
+						.last()
+						.unwrap_or(Ok(expr))?;
 					type_guard(&ret_ty, &Some(result.get(env).type_of()))?;
 					result
 				}
