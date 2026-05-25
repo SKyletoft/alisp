@@ -245,6 +245,14 @@ fn print_combined() {
 }
 
 #[test]
+fn immediately_invoked_lambda() {
+	let code = "((lambda [x] (* x x)) 2)";
+	let expected = 4.into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
 fn defun() {
 	let code = "(defun square [x] (* x x)) (square 2)";
 	let expected = 4.into();
