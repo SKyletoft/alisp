@@ -323,12 +323,8 @@ mod runtime_object {
 			ret_ty: Option<LispType>,
 			body: ObjectReference<'a, N>,
 		},
-		BuiltinDyadic {
-			f: BuiltinDyadicFn<'a, N>,
-		},
-		BuiltinMonadic {
-			f: BuiltinMonadicFn<'a, N>,
-		},
+		BuiltinDyadic(BuiltinDyadicFn<'a, N>),
+		BuiltinMonadic(BuiltinMonadicFn<'a, N>),
 	}
 
 	impl<'a, const N: usize> LispObject<'a, N> {
@@ -346,8 +342,8 @@ mod runtime_object {
 				LispObject::Float(_) => LispType::Float,
 				LispObject::Pair(..) => LispType::Pair,
 				LispObject::Lambda { .. }
-				| LispObject::BuiltinDyadic { .. }
-				| LispObject::BuiltinMonadic { .. } => LispType::Function,
+				| LispObject::BuiltinDyadic(_)
+				| LispObject::BuiltinMonadic(_) => LispType::Function,
 			}
 		}
 
@@ -389,7 +385,9 @@ mod runtime_object {
 				write_lisp_elem(f, env.get(*body), env)?;
 				write!(f, ")")
 			}
-			LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => write!(f, "Builtin"),
+			LispObject::BuiltinDyadic(_) | LispObject::BuiltinMonadic(_) => {
+				write!(f, "Builtin")
+			}
 		}
 	}
 
@@ -702,7 +700,7 @@ mod runtime_object {
 			) -> Result<ObjectReference<'a, N>, RuntimeError>
 			+ 'static,
 		) {
-			let fn_ref = self.create_object(LispObject::BuiltinDyadic { f: Rc::new(f) });
+			let fn_ref = self.create_object(LispObject::BuiltinDyadic(Rc::new(f)));
 			self.stack.push((name.into(), fn_ref));
 		}
 
@@ -715,7 +713,7 @@ mod runtime_object {
 			) -> Result<ObjectReference<'a, N>, RuntimeError>
 			+ 'static,
 		) {
-			let fn_ref = self.create_object(LispObject::BuiltinMonadic { f: Rc::new(f) });
+			let fn_ref = self.create_object(LispObject::BuiltinMonadic(Rc::new(f)));
 			self.stack.push((name.into(), fn_ref));
 		}
 

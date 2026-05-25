@@ -56,7 +56,7 @@ pub fn eval<'a>(
 					type_guard(&ret_ty, &Some(result.get(env).type_of()))?;
 					result
 				}
-				LispObject::BuiltinDyadic { f } => {
+				LispObject::BuiltinDyadic(f) => {
 					let l_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
 					let l_evalled = eval(l_ref, env)?;
 					let l = env.get(l_evalled).clone();
@@ -67,13 +67,14 @@ pub fn eval<'a>(
 
 					f(l, r, env)?
 				}
-				LispObject::BuiltinMonadic { f } => {
+				LispObject::BuiltinMonadic(f) => {
 					let arg_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
 					let evalled = eval(arg_ref, env)?;
 					let arg = env.get(evalled).clone();
 					f(arg, env)?
 				}
-				_ => {
+				func => {
+					dbg!(func, args_iter);
 					return Err(RuntimeError::TypeError {
 						expected: Some(LispType::Function),
 						actual: None,
