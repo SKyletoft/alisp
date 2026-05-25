@@ -75,7 +75,7 @@ pub fn eval<'a>(
 				}
 				_ => {
 					return Err(RuntimeError::TypeError {
-						expected: Some("function".into()),
+						expected: Some(LispType::Function),
 						actual: None,
 					});
 				}

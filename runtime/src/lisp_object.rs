@@ -158,11 +158,11 @@ mod parse_tree {
 		#[allow(dead_code)]
 		pub(crate) fn type_of(&self) -> Option<LispType> {
 			let res = match self {
-				LispParseTree::Atom(_) => "atom".into(),
-				LispParseTree::Integer(_) => "i32".into(),
-				LispParseTree::Float(_) => "f64".into(),
-				LispParseTree::Pair(..) => "pair".into(),
-				LispParseTree::Lambda { .. } => "function".into(),
+				LispParseTree::Atom(_) => LispType::Atom,
+				LispParseTree::Integer(_) => LispType::Integer,
+				LispParseTree::Float(_) => LispType::Float,
+				LispParseTree::Pair(..) => LispType::Pair,
+				LispParseTree::Lambda { .. } => LispType::Function,
 			};
 			Some(res)
 		}
