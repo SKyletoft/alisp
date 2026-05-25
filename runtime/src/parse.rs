@@ -160,6 +160,7 @@ fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
 		return Err(err("lambda must have an argument list"));
 	};
 	let args = args
+		.into_iter()
 		.map(parse_argument)
 		.take(10_000)
 		.collect::<Result<SmallVec<_>, _>>()?;
