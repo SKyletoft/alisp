@@ -309,10 +309,7 @@ mod runtime_object {
 	>;
 
 	type BuiltinMonadicFn<'a, const N: usize> = Rc<
-		dyn Fn(
-			LispObject<'a, N>,
-			&mut Env<'a, N>,
-		) -> Result<ObjectReference<'a, N>, RuntimeError>,
+		dyn Fn(LispObject<'a, N>, &mut Env<'a, N>) -> Result<ObjectReference<'a, N>, RuntimeError>,
 	>;
 
 	#[derive(Clone)]
@@ -348,7 +345,9 @@ mod runtime_object {
 				LispObject::Integer(_) => LispType::Integer,
 				LispObject::Float(_) => LispType::Float,
 				LispObject::Pair(..) => LispType::Pair,
-				LispObject::Lambda { .. } | LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => LispType::Function,
+				LispObject::Lambda { .. }
+				| LispObject::BuiltinDyadic { .. }
+				| LispObject::BuiltinMonadic { .. } => LispType::Function,
 			}
 		}
 
@@ -442,7 +441,9 @@ mod runtime_object {
 					.field("ret_ty", ret_ty)
 					.field("body", body)
 					.finish(),
-				LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => f.debug_struct("Builtin").finish(),
+				LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
+					f.debug_struct("Builtin").finish()
+				}
 			}
 		}
 	}
@@ -498,16 +499,16 @@ mod runtime_object {
 			if ENV_IN_USE[N].swap(true, Ordering::SeqCst) {
 				Err(())
 			} else {
-			let mut ret = Self {
-				objects: HashMap::new(),
-				monotonic_object_count: 0,
-				stack: Vec::new(),
-			};
-			let t_ref = ret.create_object(LispObject::Atom("t".into()));
-			ret.stack.push(("t".into(), t_ref));
-			let nil_ref = ret.create_object(LispObject::Atom("nil".into()));
-			ret.stack.push(("nil".into(), nil_ref));
-			ret.push_builtin_dyadic("+", |l, r, env| match (l, r) {
+				let mut ret = Self {
+					objects: HashMap::new(),
+					monotonic_object_count: 0,
+					stack: Vec::new(),
+				};
+				let t_ref = ret.create_object(LispObject::Atom("t".into()));
+				ret.stack.push(("t".into(), t_ref));
+				let nil_ref = ret.create_object(LispObject::Atom("nil".into()));
+				ret.stack.push(("nil".into(), nil_ref));
+				ret.push_builtin_dyadic("+", |l, r, env| match (l, r) {
 					(LispObject::Float(x), LispObject::Float(y)) => {
 						Ok(env.create_object(LispObject::Float(x + y)))
 					}
@@ -571,80 +572,100 @@ mod runtime_object {
 					}),
 				});
 				ret.push_builtin_dyadic("=", |l, r, env| match (l, r) {
-					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if (x - y).abs() < f64::EPSILON {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
-					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x == y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(if (x - y).abs() < f64::EPSILON {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) => {
+						Ok(env.create_object(if x == y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
 					(l, r) => Err(RuntimeError::TypeError {
 						expected: Some(l.type_of()),
 						actual: Some(r.type_of()),
 					}),
 				});
 				ret.push_builtin_dyadic("<", |l, r, env| match (l, r) {
-					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if x < y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
-					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x < y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(if x < y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) => {
+						Ok(env.create_object(if x < y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
 					(l, r) => Err(RuntimeError::TypeError {
 						expected: Some(l.type_of()),
 						actual: Some(r.type_of()),
 					}),
 				});
 				ret.push_builtin_dyadic(">", |l, r, env| match (l, r) {
-					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if x > y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
-					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x > y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(if x > y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) => {
+						Ok(env.create_object(if x > y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
 					(l, r) => Err(RuntimeError::TypeError {
 						expected: Some(l.type_of()),
 						actual: Some(r.type_of()),
 					}),
 				});
 				ret.push_builtin_dyadic("<=", |l, r, env| match (l, r) {
-					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if x <= y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
-					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x <= y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(if x <= y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) => {
+						Ok(env.create_object(if x <= y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
 					(l, r) => Err(RuntimeError::TypeError {
 						expected: Some(l.type_of()),
 						actual: Some(r.type_of()),
 					}),
 				});
 				ret.push_builtin_dyadic(">=", |l, r, env| match (l, r) {
-					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if x >= y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
-					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x >= y {
-						LispObject::Atom("t".into())
-					} else {
-						LispObject::Atom("nil".into())
-					})),
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(if x >= y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) => {
+						Ok(env.create_object(if x >= y {
+							LispObject::Atom("t".into())
+						} else {
+							LispObject::Atom("nil".into())
+						}))
+					}
 					(l, r) => Err(RuntimeError::TypeError {
 						expected: Some(l.type_of()),
 						actual: Some(r.type_of()),
