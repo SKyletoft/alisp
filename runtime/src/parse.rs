@@ -198,6 +198,14 @@ mod test {
 	use crate::lisp_object::LispParseTree;
 
 	#[test]
+	fn neg_numbers() {
+		let code = "-5";
+		let expected = LispParseTree::Integer(-5);
+		let result = super::parse(code);
+		assert_eq!(result, Ok(expected));
+	}
+
+	#[test]
 	fn int_list() {
 		let code = "(1 2 3)";
 		let expected = LispParseTree::from(vec![1, 2, 3]);
