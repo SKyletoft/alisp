@@ -20,204 +20,130 @@ pub fn eval(code: &str) -> LispParseTree {
 	crate::lisp_object::lisp_object_to_parse_tree(env.get(res), &env)
 }
 
-#[test]
-fn add() {
-	let code = "(+ 1 2)";
-	let expected = (1 + 2).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn add(a: i16, b: i16) -> TestResult {
+	if a < 0 || b < 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(+ {a} {b})")) == (a + b).into())
 }
 
-#[test]
-fn mul() {
-	let code = "(* 2 4)";
-	let expected = (2 * 4).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn sub(a: i16, b: i16) -> TestResult {
+	if a < 0 || b < 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(- {a} {b})")) == (a - b).into())
 }
 
-#[test]
-fn sub() {
-	let code = "(- 10 3)";
-	let expected = (10 - 3).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn mul(a: i16, b: i16) -> TestResult {
+	if a < 0 || b < 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(* {a} {b})")) == (a * b).into())
 }
 
-#[test]
-fn div() {
-	let code = "(/ 10 3)";
-	let expected = (10 / 3).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn div(a: i16, b: i16) -> TestResult {
+	if a < 0 || b <= 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(/ {a} {b})")) == (a / b).into())
 }
 
-#[test]
-fn modulo() {
-	let code = "(% 10 3)";
-	let expected = (10 % 3).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn rem(a: i16, b: i16) -> TestResult {
+	if a < 0 || b <= 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(% {a} {b})")) == (a % b).into())
 }
 
-#[test]
-fn eq_true() {
-	let code = "(= 5 5)";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn eq(a: i16, b: i16) -> TestResult {
+	if a < 0 || b < 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(= {a} {b})")) == (a == b).into())
 }
 
-#[test]
-fn eq_false() {
-	let code = "(= 5 3)";
-	let expected = "nil".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn lt(a: i16, b: i16) -> TestResult {
+	if a < 0 || b < 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(< {a} {b})")) == (a < b).into())
 }
 
-#[test]
-fn lt_true() {
-	let code = "(< 3 5)";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn gt(a: i16, b: i16) -> TestResult {
+	if a < 0 || b < 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(> {a} {b})")) == (a > b).into())
 }
 
-#[test]
-fn lt_false() {
-	let code = "(< 5 3)";
-	let expected = "nil".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn lte(a: i16, b: i16) -> TestResult {
+	if a < 0 || b < 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(<= {a} {b})")) == (a <= b).into())
 }
 
-#[test]
-fn gt_true() {
-	let code = "(> 5 3)";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn gte(a: i16, b: i16) -> TestResult {
+	if a < 0 || b < 0 { return TestResult::discard(); }
+	let (a, b) = (a as i32, b as i32);
+	TestResult::from_bool(eval(&format!("(>= {a} {b})")) == (a >= b).into())
 }
 
-#[test]
-fn gt_false() {
-	let code = "(> 3 5)";
-	let expected = "nil".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn add_mul(a: i16, b: i16, c: i16) -> TestResult {
+	if a < 0 || b < 0 || c < 0 { return TestResult::discard(); }
+	let (a, b, c) = (a as i32, b as i32, c as i32);
+	TestResult::from_bool(eval(&format!("(* (+ {a} {b}) {c})")) == ((a + b) * c).into())
 }
 
-#[test]
-fn lte_true() {
-	let code = "(<= 3 5)";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn add_sub_combined(a: i16, b: i16, c: i16) -> TestResult {
+	if a < 0 || b < 0 || c < 0 { return TestResult::discard(); }
+	let (a, b, c) = (a as i32, b as i32, c as i32);
+	TestResult::from_bool(eval(&format!("(+ (- {a} {b}) {c})")) == ((a - b) + c).into())
 }
 
-#[test]
-fn lte_equal() {
-	let code = "(<= 5 5)";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn mul_sub_combined(a: i16, b: i16, c: i16) -> TestResult {
+	if a < 0 || b < 0 || c < 0 { return TestResult::discard(); }
+	let (a, b, c) = (a as i32, b as i32, c as i32);
+	TestResult::from_bool(eval(&format!("(- (* {a} {b}) {c})")) == ((a * b) - c).into())
 }
 
-#[test]
-fn lte_false() {
-	let code = "(<= 5 3)";
-	let expected = "nil".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn div_mul_combined(a: i16, b: i16, c: i16, d: i16) -> TestResult {
+	if a < 0 || b < 0 || c < 0 || d < 0 || c <= d { return TestResult::discard(); }
+	let (a, b, c, d) = (a as i32, b as i32, c as i32, d as i32);
+	TestResult::from_bool(eval(&format!("(/ (* {a} {b}) (- {c} {d}))")) == ((a * b) / (c - d)).into())
 }
 
-#[test]
-fn gte_true() {
-	let code = "(>= 5 3)";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn eq_combined(a: i16, b: i16, c: i16, d: i16) -> TestResult {
+	if a < 0 || b < 0 || c < 0 || d < 0 { return TestResult::discard(); }
+	let (a, b, c, d) = (a as i32, b as i32, c as i32, d as i32);
+	TestResult::from_bool(eval(&format!("(= (+ {a} {b}) (- {c} {d}))")) == ((a + b) == (c - d)).into())
 }
 
-#[test]
-fn gte_equal() {
-	let code = "(>= 5 5)";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn lt_combined(a: i16, b: i16, c: i16, d: i16) -> TestResult {
+	if a < 0 || b < 0 || c < 0 || d < 0 { return TestResult::discard(); }
+	let (a, b, c, d) = (a as i32, b as i32, c as i32, d as i32);
+	TestResult::from_bool(eval(&format!("(< (+ {a} {b}) (* {c} {d}))")) == ((a + b) < (c * d)).into())
 }
 
-#[test]
-fn gte_false() {
-	let code = "(>= 3 5)";
-	let expected = "nil".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn modulo_combined(a: i16, b: i16, c: i16, d: i16) -> TestResult {
+	if a < 0 || b < 0 || c < 0 || d < 0 || c <= d { return TestResult::discard(); }
+	let (a, b, c, d) = (a as i32, b as i32, c as i32, d as i32);
+	TestResult::from_bool(eval(&format!("(% (+ {a} {b}) (- {c} {d}))")) == ((a + b) % (c - d)).into())
 }
 
-#[test]
-fn add_mul() {
-	let code = "(* (+ 1 2) 4)";
-	let expected = ((1 + 2) * 4).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
-}
-
-#[test]
-fn add_sub_combined() {
-	let code = "(+ (- 10 3) 2)";
-	let expected = ((10 - 3) + 2).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
-}
-
-#[test]
-fn mul_sub_combined() {
-	let code = "(* (+ 1 2) (- 10 5))";
-	let expected = ((1 + 2) * (10 - 5)).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
-}
-
-#[test]
-fn div_mul_combined() {
-	let code = "(/ (* 2 4) (- 10 2))";
-	let expected = ((2 * 4) / (10 - 2)).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
-}
-
-#[test]
-fn eq_combined() {
-	let code = "(= (+ 1 2) (- 5 2))";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
-}
-
-#[test]
-fn lt_combined() {
-	let code = "(< (+ 1 2) (* 2 3))";
-	let expected = "t".into();
-	let result = eval(code);
-	assert_eq!(result, expected);
-}
-
-#[test]
-fn modulo_combined() {
-	let code = "(% (+ 10 2) (- 6 2))";
-	let expected = ((10 + 2) % (6 - 2)).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
-}
-
-#[test]
-fn all_arithmetic() {
-	let code = "(+ (- (* 8 2) (/ 10 5)) 3)";
-	let expected = ((8 * 2) - (10 / 5) + 3).into();
-	let result = eval(code);
-	assert_eq!(result, expected);
+#[quickcheck]
+fn all_arithmetic(a: i16, b: i16, c: i16, d: i16, e: i16) -> TestResult {
+	if a < 0 || b < 0 || c < 0 || d <= 0 || e < 0 { return TestResult::discard(); }
+	let (a, b, c, d, e) = (a as i32, b as i32, c as i32, d as i32, e as i32);
+	TestResult::from_bool(eval(&format!("(+ (- (* {a} {b}) (/ {c} {d})) {e})")) == ((a * b) - (c / d) + e).into())
 }
 
 #[test]
