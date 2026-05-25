@@ -4,7 +4,7 @@ use smallvec::smallvec;
 
 use crate::{
 	eval,
-    lisp_object::{Env, LispParseTree, ObjectReference},
+	lisp_object::{Env, LispParseTree, ObjectReference},
 	parse,
 };
 
