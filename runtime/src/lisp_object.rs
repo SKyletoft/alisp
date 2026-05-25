@@ -808,7 +808,7 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 			}
 		}
 		LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
-			unimplemented!("Cannot convert builtins to parse tree")
+			LispParseTree::Atom("builtin".into())
 		}
 	}
 }
