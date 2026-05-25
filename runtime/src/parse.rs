@@ -36,13 +36,13 @@ pub fn parse_many<'a>(
 
 fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
 	alt((
-		parse_atom,
 		parse_float,
 		parse_integer,
 		parse_lambda,
 		parse_list::<'(', ')'>,
 		parse_list::<'[', ']'>,
 		parse_list::<'{', '}'>,
+		parse_atom,
 	))
 	.parse(code)
 }
@@ -80,7 +80,7 @@ fn parse_atom(input: &str) -> IResult<&str, LispParseTree> {
 
 fn parse_integer(input: &str) -> IResult<&str, LispParseTree> {
 	// [0..9]+
-	map(digit1, |digits: &str| {
+	map(recognize(pair(opt(char('-')), digit1)), |digits: &str| {
 		LispParseTree::Integer(digits.parse().expect("Nom should've validated this?"))
 	})
 	.parse(input)
