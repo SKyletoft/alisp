@@ -1,5 +1,5 @@
 pub use parse_tree::{LispParseTree, LispType};
-pub use runtime_object::{Env, LispObject, ObjectReference};
+pub use runtime_object::{Env, LispObject, LispObjectIterator, ObjectReference};
 
 pub type SmallString = smallstr::SmallString<[u8; 23]>;
 
@@ -205,49 +205,487 @@ mod parse_tree {
 mod runtime_object {
 	use std::{
 		collections::HashMap,
+		fmt,
 		marker::PhantomData,
+		rc::Rc,
 		sync::atomic::{AtomicBool, Ordering},
 	};
 
-	use super::{LispParseTree, LispType, SmallString};
+	use smallvec::SmallVec;
 
-	#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+	use super::{LispParseTree, LispType, SmallString};
+	use crate::eval::RuntimeError;
+
+	#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 	pub struct ObjectReference<'a, const N: usize = 0>(usize, PhantomData<&'a ()>);
 
+	impl<'a, const N: usize> fmt::Debug for ObjectReference<'a, N> {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			write!(f, "ObjectReference({})", self.0)
+		}
+	}
+
+	impl<'a, const N: usize> ObjectReference<'a, N> {
+		#[allow(dead_code)]
+		pub(crate) fn iter<'b>(self, env: &'b Env<'a, N>) -> LispObjectIterator<'a, 'b, N> {
+			LispObjectIterator {
+				env,
+				reference: self,
+			}
+		}
+
+		#[inline(always)]
+		pub fn get<'b>(&'b self, env: &'b Env<'a, N>) -> &'b LispObject<'a, N> {
+			env.get(*self)
+		}
+
+		#[inline(always)]
+		pub fn peek<'b>(&'b self, env: &'b Env<'a, N>) -> Option<&'b LispObject<'a, N>> {
+			self.get(env).next(env)
+		}
+
+		#[inline(always)]
+		pub fn next(&mut self, env: &Env<'a, N>) -> Option<ObjectReference<'a, N>> {
+			match &self.get(env) {
+				LispObject::Pair(this, next) => {
+					let ret = *this;
+					*self = *next;
+					Some(ret)
+				}
+				_ => None,
+			}
+		}
+
+		#[inline(always)]
+		pub fn from_parse_object(
+			parse_object: LispParseTree,
+			env: &mut Env<'a, N>,
+		) -> ObjectReference<'a, N> {
+			match parse_object {
+				LispParseTree::Atom(s) => env.create_object(LispObject::Atom(s)),
+				LispParseTree::Integer(i) => env.create_object(LispObject::Integer(i)),
+				LispParseTree::Float(f) => env.create_object(LispObject::Float(f)),
+				LispParseTree::Pair(car, cdr) => {
+					let car = Self::from_parse_object(*car, env);
+					let cdr = Self::from_parse_object(*cdr, env);
+					env.create_object(LispObject::Pair(car, cdr))
+				}
+				LispParseTree::Lambda {
+					params,
+					ret_ty,
+					body,
+				} => {
+					let body = Self::from_parse_object(*body, env);
+					env.create_object(LispObject::Lambda {
+						params,
+						ret_ty,
+						body,
+					})
+				}
+			}
+		}
+	}
+
+	type BuiltinDyadicFn<'a, const N: usize> = Rc<
+		dyn Fn(
+			LispObject<'a, N>,
+			LispObject<'a, N>,
+			&mut Env<'a, N>,
+		) -> Result<ObjectReference<'a, N>, RuntimeError>,
+	>;
+
+	type BuiltinMonadicFn<'a, const N: usize> = Rc<
+		dyn Fn(
+			LispObject<'a, N>,
+			&mut Env<'a, N>,
+		) -> Result<ObjectReference<'a, N>, RuntimeError>,
+	>;
+
+	#[derive(Clone)]
 	pub enum LispObject<'a, const N: usize = 0> {
 		Atom(SmallString),
 		Integer(i32),
 		Float(f64),
 		Pair(ObjectReference<'a, N>, ObjectReference<'a, N>),
 		Lambda {
-			params: Vec<(SmallString, Option<LispType>)>,
+			params: SmallVec<[(SmallString, Option<LispType>); 1]>,
 			ret_ty: Option<LispType>,
 			body: ObjectReference<'a, N>,
 		},
-		Builtins {
-			f: Box<dyn Fn(LispObject<'a, N>, LispObject<'a, N>) -> LispObject<'a, N>>,
+		BuiltinDyadic {
+			f: BuiltinDyadicFn<'a, N>,
 		},
+		BuiltinMonadic {
+			f: BuiltinMonadicFn<'a, N>,
+		},
+	}
+
+	impl<'a, const N: usize> LispObject<'a, N> {
+		pub(crate) fn next<'b>(&'b self, env: &'b Env<'a, N>) -> Option<&'b LispObject<'a, N>> {
+			match self {
+				LispObject::Pair(_, next) => Some(env.get(*next)),
+				_ => None,
+			}
+		}
+
+		pub(crate) fn type_of(&self) -> LispType {
+			match self {
+				LispObject::Atom(_) => LispType::Atom,
+				LispObject::Integer(_) => LispType::Integer,
+				LispObject::Float(_) => LispType::Float,
+				LispObject::Pair(..) => LispType::Pair,
+				LispObject::Lambda { .. } | LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => LispType::Function,
+			}
+		}
+
+		pub fn display(&self, f: &mut fmt::Formatter<'_>, env: &Env<'a, N>) -> fmt::Result {
+			write_lisp_elem(f, self, env)
+		}
+	}
+
+	fn write_lisp_elem<'a, const N: usize>(
+		f: &mut fmt::Formatter<'_>,
+		obj: &LispObject<'a, N>,
+		env: &Env<'a, N>,
+	) -> fmt::Result {
+		match obj {
+			LispObject::Atom(s) => write!(f, "{s}"),
+			LispObject::Integer(n) => write!(f, "{n}"),
+			LispObject::Float(n) => write!(f, "{n}"),
+			LispObject::Pair(car, cdr) => write_lisp_pair(f, *car, *cdr, env),
+			LispObject::Lambda {
+				params,
+				ret_ty,
+				body,
+			} => {
+				write!(f, "(λ [")?;
+				for (i, (name, ty)) in params.iter().enumerate() {
+					if i > 0 {
+						write!(f, " ")?;
+					}
+					match ty {
+						Some(ty) => write!(f, "({name} {ty})")?,
+						None => write!(f, "{name}")?,
+					}
+				}
+				write!(f, "]")?;
+				if let Some(ret_ty) = ret_ty {
+					write!(f, " -> {ret_ty}")?;
+				}
+				write!(f, " ")?;
+				write_lisp_elem(f, env.get(*body), env)?;
+				write!(f, ")")
+			}
+			LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => write!(f, "Builtin"),
+		}
+	}
+
+	fn write_lisp_pair<'a, const N: usize>(
+		f: &mut fmt::Formatter<'_>,
+		car: ObjectReference<'a, N>,
+		cdr: ObjectReference<'a, N>,
+		env: &Env<'a, N>,
+	) -> fmt::Result {
+		write!(f, "(")?;
+		write_lisp_elem(f, env.get(car), env)?;
+		write_lisp_cdr(f, cdr, env)?;
+		write!(f, ")")
+	}
+
+	fn write_lisp_cdr<'a, const N: usize>(
+		f: &mut fmt::Formatter<'_>,
+		cdr: ObjectReference<'a, N>,
+		env: &Env<'a, N>,
+	) -> fmt::Result {
+		match env.get(cdr) {
+			LispObject::Atom(s) if s == "nil" => Ok(()),
+			LispObject::Pair(car, next) => {
+				write!(f, " ")?;
+				write_lisp_elem(f, env.get(*car), env)?;
+				write_lisp_cdr(f, *next, env)
+			}
+			other => {
+				write!(f, " . ")?;
+				write_lisp_elem(f, other, env)
+			}
+		}
+	}
+
+	impl<'a, const N: usize> fmt::Debug for LispObject<'a, N> {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			match self {
+				LispObject::Atom(s) => f.debug_tuple("Atom").field(s).finish(),
+				LispObject::Integer(i) => f.debug_tuple("Integer").field(i).finish(),
+				LispObject::Float(fl) => f.debug_tuple("Float").field(fl).finish(),
+				LispObject::Pair(a, b) => f.debug_tuple("Pair").field(a).field(b).finish(),
+				LispObject::Lambda {
+					params,
+					ret_ty,
+					body,
+				} => f
+					.debug_struct("Lambda")
+					.field("params", params)
+					.field("ret_ty", ret_ty)
+					.field("body", body)
+					.finish(),
+				LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => f.debug_struct("Builtin").finish(),
+			}
+		}
+	}
+
+	pub struct LispObjectIterator<'a, 'b, const N: usize> {
+		env: &'b Env<'a, N>,
+		reference: ObjectReference<'a, N>,
+	}
+
+	impl<'a, 'b, const N: usize> Iterator for LispObjectIterator<'a, 'b, N> {
+		type Item = ObjectReference<'a, N>;
+
+		fn next(&mut self) -> Option<Self::Item> {
+			let obj = self.env.get(self.reference);
+			match obj {
+				LispObject::Pair(this, next) => {
+					self.reference = *next;
+					Some(*this)
+				}
+				_ => None,
+			}
+		}
 	}
 
 	pub struct Env<'a, const N: usize = 0> {
 		objects: HashMap<ObjectReference<'a, N>, LispObject<'a, N>>,
 		monotonic_object_count: usize,
+
+		pub(crate) stack: Vec<(SmallString, ObjectReference<'a, N>)>,
+	}
+
+	impl<'a, const N: usize> fmt::Debug for Env<'a, N> {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			f.debug_struct("Env")
+				.field("monotonic_object_count", &self.monotonic_object_count)
+				.field("stack", &self.stack)
+				.finish()?;
+			writeln!(f)?;
+			writeln!(f, "objects:")?;
+			for (k, v) in &self.objects {
+				write!(f, "  {k:?}: ")?;
+				v.display(f, self)?;
+				writeln!(f)?;
+			}
+			Ok(())
+		}
 	}
 	static ENV_IN_USE: [AtomicBool; 64] = unsafe { std::mem::transmute([false; 64]) };
 
 	impl<'a, const N: usize> Env<'a, N> {
+		#[inline(always)]
 		pub fn new() -> Result<Self, ()> {
 			if ENV_IN_USE[N].swap(true, Ordering::SeqCst) {
 				Err(())
 			} else {
-				Ok(Self {
-					objects: HashMap::new(),
-					monotonic_object_count: 0,
-				})
+			let mut ret = Self {
+				objects: HashMap::new(),
+				monotonic_object_count: 0,
+				stack: Vec::new(),
+			};
+			let t_ref = ret.create_object(LispObject::Atom("t".into()));
+			ret.stack.push(("t".into(), t_ref));
+			let nil_ref = ret.create_object(LispObject::Atom("nil".into()));
+			ret.stack.push(("nil".into(), nil_ref));
+			ret.push_builtin_dyadic("+", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(LispObject::Float(x + y)))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) => {
+						Ok(env.create_object(LispObject::Integer(x + y)))
+					}
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic("*", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(LispObject::Float(x * y)))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) => {
+						Ok(env.create_object(LispObject::Integer(x * y)))
+					}
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic("-", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(LispObject::Float(x - y)))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) => {
+						Ok(env.create_object(LispObject::Integer(x - y)))
+					}
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic("/", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => {
+						Ok(env.create_object(LispObject::Float(x / y)))
+					}
+					(LispObject::Integer(x), LispObject::Integer(y)) if y != 0 => {
+						Ok(env.create_object(LispObject::Integer(x / y)))
+					}
+					(LispObject::Integer(_), LispObject::Integer(_)) => {
+						Err(RuntimeError::DivisionByZero)
+					}
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic("%", |l, r, env| match (l, r) {
+					(LispObject::Integer(x), LispObject::Integer(y)) if y != 0 => {
+						Ok(env.create_object(LispObject::Integer(x % y)))
+					}
+					(LispObject::Integer(_), LispObject::Integer(_)) => {
+						Err(RuntimeError::DivisionByZero)
+					}
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic("=", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if (x - y).abs() < f64::EPSILON {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x == y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic("<", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if x < y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x < y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic(">", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if x > y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x > y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic("<=", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if x <= y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x <= y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_dyadic(">=", |l, r, env| match (l, r) {
+					(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object(if x >= y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(LispObject::Integer(x), LispObject::Integer(y)) => Ok(env.create_object(if x >= y {
+						LispObject::Atom("t".into())
+					} else {
+						LispObject::Atom("nil".into())
+					})),
+					(l, r) => Err(RuntimeError::TypeError {
+						expected: Some(l.type_of()),
+						actual: Some(r.type_of()),
+					}),
+				});
+				ret.push_builtin_monadic("print", |arg, env| {
+					print!("{}", lisp_to_string(&arg, env));
+					Ok(env.create_object(LispObject::Atom("nil".into())))
+				});
+				ret.push_builtin_monadic("println", |arg, env| {
+					println!("{}", lisp_to_string(&arg, env));
+					Ok(env.create_object(LispObject::Atom("nil".into())))
+				});
+				Ok(ret)
 			}
 		}
 
-		pub fn create_object(&mut self) -> ObjectReference<'a, N> {
+		pub fn wait_for_new() -> Self {
+			loop {
+				if let Ok(e) = Env::new() {
+					return e;
+				}
+				std::thread::yield_now();
+			}
+		}
+
+		fn push_builtin_dyadic(
+			&mut self,
+			name: &str,
+			f: impl Fn(
+				LispObject<'a, N>,
+				LispObject<'a, N>,
+				&mut Env<'a, N>,
+			) -> Result<ObjectReference<'a, N>, RuntimeError>
+			+ 'static,
+		) {
+			let fn_ref = self.create_object(LispObject::BuiltinDyadic { f: Rc::new(f) });
+			self.stack.push((name.into(), fn_ref));
+		}
+
+		fn push_builtin_monadic(
+			&mut self,
+			name: &str,
+			f: impl Fn(
+				LispObject<'a, N>,
+				&mut Env<'a, N>,
+			) -> Result<ObjectReference<'a, N>, RuntimeError>
+			+ 'static,
+		) {
+			let fn_ref = self.create_object(LispObject::BuiltinMonadic { f: Rc::new(f) });
+			self.stack.push((name.into(), fn_ref));
+		}
+
+		#[inline(always)]
+		pub fn create_object(&mut self, obj: LispObject<'a, N>) -> ObjectReference<'a, N> {
 			let ret = {
 				let id = self.monotonic_object_count;
 				ObjectReference(id, PhantomData)
@@ -256,68 +694,70 @@ mod runtime_object {
 				.monotonic_object_count
 				.checked_add(1)
 				.expect("Object reference count overflow!");
-			self.objects.insert(ret, LispObject::Atom("nil".into()));
+			self.objects.insert(ret, obj);
 			ret
 		}
 
-		pub fn get(&self, reference: ObjectReference<'a, N>) -> &LispObject<'a, N> {
+		#[inline(always)]
+		pub fn get<'b>(&'b self, reference: ObjectReference<'a, N>) -> &'b LispObject<'a, N> {
 			&self.objects[&reference]
 		}
 
+		#[inline(always)]
 		pub fn get_mut(&mut self, reference: ObjectReference<'a, N>) -> &mut LispObject<'a, N> {
 			self.objects
 				.get_mut(&reference)
 				.expect("References from the same Env must be valid")
 		}
 
-		pub fn from_parse_object(
-			parse_object: LispParseTree,
-			env: &mut Env<'a>,
-		) -> ObjectReference<'a> {
-			match parse_object {
-				LispParseTree::Atom(s) => {
-					let r = env.create_object();
-					*env.get_mut(r) = LispObject::Atom(s);
-					r
-				}
-				LispParseTree::Integer(i) => {
-					let r = env.create_object();
-					*env.get_mut(r) = LispObject::Integer(i);
-					r
-				}
-				LispParseTree::Float(f) => {
-					let r = env.create_object();
-					*env.get_mut(r) = LispObject::Float(f);
-					r
-				}
-				LispParseTree::Pair(car, cdr) => {
-					let car = Self::from_parse_object(*car, env);
-					let cdr = Self::from_parse_object(*cdr, env);
-					let r = env.create_object();
-					*env.get_mut(r) = LispObject::Pair(car, cdr);
-					r
-				}
-			LispParseTree::Lambda {
-				params,
-				ret_ty,
-				body,
-			} => {
-				let body = Self::from_parse_object(*body, env);
-				let r = env.create_object();
-				*env.get_mut(r) = LispObject::Lambda {
-					params: params.into_vec(),
-					ret_ty,
-					body,
-				};
-				r
-			}
-			}
+		#[inline(always)]
+		pub fn nil(&mut self) -> ObjectReference<'a, N> {
+			self.create_object(LispObject::Atom("nil".into()))
 		}
 	}
 
 	impl<'a, const N: usize> Drop for Env<'a, N> {
 		fn drop(&mut self) {
 			ENV_IN_USE[N].store(false, Ordering::SeqCst);
+		}
+	}
+
+	struct LispDisplay<'a, 'b, const N: usize>(&'b LispObject<'a, N>, &'b Env<'a, N>);
+	impl<'a, 'b, const N: usize> fmt::Display for LispDisplay<'a, 'b, N> {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			write_lisp_elem(f, self.0, self.1)
+		}
+	}
+
+	fn lisp_to_string<'a, const N: usize>(obj: &LispObject<'a, N>, env: &Env<'a, N>) -> String {
+		format!("{}", LispDisplay(obj, env))
+	}
+}
+
+pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> LispParseTree {
+	match obj {
+		LispObject::Atom(s) => LispParseTree::Atom(s.clone()),
+		LispObject::Integer(i) => LispParseTree::Integer(*i),
+		LispObject::Float(f) => LispParseTree::Float(*f),
+		LispObject::Pair(car, cdr) => {
+			let car = lisp_object_to_parse_tree(env.get(*car), env);
+			let cdr = lisp_object_to_parse_tree(env.get(*cdr), env);
+			LispParseTree::Pair(Box::new(car), Box::new(cdr))
+		}
+		LispObject::Lambda {
+			params,
+			ret_ty,
+			body,
+		} => {
+			let body = lisp_object_to_parse_tree(env.get(*body), env);
+			LispParseTree::Lambda {
+				params: params.clone(),
+				ret_ty: ret_ty.clone(),
+				body: Box::new(body),
+			}
+		}
+		LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
+			unimplemented!("Cannot convert builtins to parse tree")
 		}
 	}
 }
