@@ -1,16 +1,17 @@
 use runtime::{
 	eval,
-	lisp_object::{Env, LispParseTree},
+	lisp_object::{self, Env, ObjectReference},
 	parse,
 };
 
 fn main() {
-	let res = eval("(print \"Hello world\")");
+	let code = "(print \"Hello World!\")";
+	let mut env = Env::wait_for_new();
+	let parsed = parse::parse_many(code).unwrap();
+	let obj = parsed.into_iter().fold(env.nil(), |_, node| {
+		let obj = ObjectReference::from_parse_object(node, &mut env);
+		eval::eval(obj, &mut env).unwrap()
+	});
+	let res = lisp_object::lisp_object_to_parse_tree(obj.get(&env), &env);
 	println!("{res}")
-}
-
-pub fn eval(code: &str) -> LispParseTree {
-	let parsed = parse::parse(code).unwrap();
-	let mut env = Env::new().unwrap();
-	eval::eval(&parsed, &mut env).unwrap()
 }
