@@ -1,17 +1,253 @@
 use smallvec::smallvec;
 
-use crate::{eval, lisp_object::{Env, LispParseTree}, parse};
+use crate::{
+	eval,
+    lisp_object::{Env, LispParseTree, ObjectReference},
+	parse,
+};
+
+pub fn eval_in_env<'a>(code: &str, env: &mut Env<'a>) -> ObjectReference<'a> {
+	let parsed = parse::parse_many(code).unwrap();
+	parsed.into_iter().fold(env.nil(), |_, node| {
+		let obj = ObjectReference::from_parse_object(node, env);
+		eval::eval(obj, env).unwrap()
+	})
+}
 
 pub fn eval(code: &str) -> LispParseTree {
-	let parsed = parse::parse(code).unwrap();
-	let mut env = Env::new().unwrap();
-	eval::eval(&parsed, &mut env).unwrap()
+	let mut env = Env::wait_for_new();
+	let res = eval_in_env(code, &mut env);
+	crate::lisp_object::lisp_object_to_parse_tree(env.get(res), &env)
 }
 
 #[test]
 fn add() {
 	let code = "(+ 1 2)";
-	let expected = 3.into();
+	let expected = (1 + 2).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn mul() {
+	let code = "(* 2 4)";
+	let expected = (2 * 4).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn sub() {
+	let code = "(- 10 3)";
+	let expected = (10 - 3).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn div() {
+	let code = "(/ 10 3)";
+	let expected = (10 / 3).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn modulo() {
+	let code = "(% 10 3)";
+	let expected = (10 % 3).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn eq_true() {
+	let code = "(= 5 5)";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn eq_false() {
+	let code = "(= 5 3)";
+	let expected = "nil".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn lt_true() {
+	let code = "(< 3 5)";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn lt_false() {
+	let code = "(< 5 3)";
+	let expected = "nil".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn gt_true() {
+	let code = "(> 5 3)";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn gt_false() {
+	let code = "(> 3 5)";
+	let expected = "nil".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn lte_true() {
+	let code = "(<= 3 5)";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn lte_equal() {
+	let code = "(<= 5 5)";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn lte_false() {
+	let code = "(<= 5 3)";
+	let expected = "nil".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn gte_true() {
+	let code = "(>= 5 3)";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn gte_equal() {
+	let code = "(>= 5 5)";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn gte_false() {
+	let code = "(>= 3 5)";
+	let expected = "nil".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn add_mul() {
+	let code = "(* (+ 1 2) 4)";
+	let expected = ((1 + 2) * 4).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn add_sub_combined() {
+	let code = "(+ (- 10 3) 2)";
+	let expected = ((10 - 3) + 2).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn mul_sub_combined() {
+	let code = "(* (+ 1 2) (- 10 5))";
+	let expected = ((1 + 2) * (10 - 5)).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn div_mul_combined() {
+	let code = "(/ (* 2 4) (- 10 2))";
+	let expected = ((2 * 4) / (10 - 2)).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn eq_combined() {
+	let code = "(= (+ 1 2) (- 5 2))";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn lt_combined() {
+	let code = "(< (+ 1 2) (* 2 3))";
+	let expected = "t".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn modulo_combined() {
+	let code = "(% (+ 10 2) (- 6 2))";
+	let expected = ((10 + 2) % (6 - 2)).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn all_arithmetic() {
+	let code = "(+ (- (* 8 2) (/ 10 5)) 3)";
+	let expected = ((8 * 2) - (10 / 5) + 3).into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn print_returns_nil() {
+	let code = "(print 42)";
+	let expected = "nil".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn println_returns_nil() {
+	let code = "(println 42)";
+	let expected = "nil".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn print_combined() {
+	let code = "(print (+ 1 2))";
+	let expected = "nil".into();
+	let result = eval(code);
+	assert_eq!(result, expected);
+}
+
+#[test]
+fn defun() {
+	let code = "(defun square [x] (* x x)) (square 2)";
+	let expected = 4.into();
 	let result = eval(code);
 	assert_eq!(result, expected);
 }
