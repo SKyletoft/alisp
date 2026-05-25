@@ -520,10 +520,10 @@ mod runtime_object {
 					monotonic_object_count: 0,
 					stack: Vec::new(),
 				};
-				let t_ref = ret.create_object(LispObject::Atom("t".into()));
-				ret.stack.push(("t".into(), t_ref));
-				let nil_ref = ret.create_object(LispObject::Atom("nil".into()));
-				ret.stack.push(("nil".into(), nil_ref));
+				// let t_ref = ret.create_object(LispObject::Atom("t".into()));
+				// ret.stack.push(("t".into(), t_ref));
+				// let nil_ref = ret.create_object(LispObject::Atom("nil".into()));
+				// ret.stack.push(("nil".into(), nil_ref));
 				ret.push_builtin_dyadic("+", |l, r, env| match (l, r) {
 					(LispObject::Float(x), LispObject::Float(y)) => {
 						Ok(env.create_object(LispObject::Float(x + y)))
