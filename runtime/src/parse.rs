@@ -248,7 +248,7 @@ fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
 		}
 		body => {
 			let mut body_vec = vec![body];
-			body_vec.extend(list.into_iter());
+			body_vec.extend(list);
 			(None, body_vec)
 		}
 	};

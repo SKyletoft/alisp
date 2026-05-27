@@ -156,8 +156,7 @@ mod parse_tree {
 					Some(this)
 				}
 				_ => {
-					let ret = std::mem::replace(self, LispParseTree::Integer(0));
-					*self = LispParseTree::Atom("nil".into());
+					let ret = std::mem::replace(self, LispParseTree::Atom("nil".into()));
 					Some(ret)
 				}
 			}
