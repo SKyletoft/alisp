@@ -16,7 +16,7 @@ mod parse_tree {
 		Integer(i32 /* TODO: Bigints */),
 		Float(f64),
 		Pair(Box<LispParseTree>, Box<LispParseTree>),
-		// Array(Box<[LispParseTree]>),
+		Array(Box<[LispParseTree]>),
 		// Map(Box<[(SmallString, LispParseTree)]>),
 		String(String),
 		Lambda {
@@ -76,6 +76,7 @@ mod parse_tree {
 					LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
 					LispParseTree::String(s) => write!(f, "{s:?}"),
 					LispParseTree::Quote(inner) => write!(f, "'{inner}"),
+					LispParseTree::Array(arr) => write_array(f, arr, |f, elem| write_elem(f, elem)),
 					LispParseTree::Lambda {
 						params,
 						ret_ty,
@@ -155,6 +156,14 @@ mod parse_tree {
 					*self = next;
 					Some(this)
 				}
+				LispParseTree::Array(arr) => {
+					// [] is considered a ZST despite being dynamically sized as manually checked on godbolt in Rust 1.95
+					let old = std::mem::replace(arr, Box::new([]));
+					let mut iter = old.into_vec().into_iter();
+					let this = iter.next()?;
+					*self = LispParseTree::Array(iter.collect());
+					Some(this)
+				}
 				_ => {
 					let ret = std::mem::replace(self, LispParseTree::Atom("nil".into()));
 					Some(ret)
@@ -167,6 +176,7 @@ mod parse_tree {
 			match self {
 				LispParseTree::Atom(s) if s == "nil" => None,
 				LispParseTree::Pair(car, _) => Some(car),
+				LispParseTree::Array(arr) => arr.first(),
 				other => Some(other),
 			}
 		}
@@ -180,6 +190,7 @@ mod parse_tree {
 				LispParseTree::Pair(..) => LispType::Pair,
 				LispParseTree::Lambda { .. } => LispType::Function,
 				LispParseTree::String(_) => LispType::String,
+				LispParseTree::Array(..) => LispType::Array,
 				LispParseTree::Quote(_) => LispType::Code,
 			};
 			Some(res)
@@ -217,6 +228,8 @@ mod parse_tree {
 		Float,
 		#[display("list")]
 		Pair,
+		#[display("array")]
+		Array,
 		#[display("function")]
 		Function,
 		#[display("string")]
@@ -302,6 +315,14 @@ mod runtime_object {
 				LispParseTree::Integer(i) => env.create_object(LispObject::Integer(i)),
 				LispParseTree::Float(f) => env.create_object(LispObject::Float(f)),
 				LispParseTree::String(_) => todo!(),
+				LispParseTree::Array(arr) => {
+					let arr: Vec<ObjectReference<'a, N>> = arr
+						.into_vec()
+						.into_iter()
+						.map(|e| Self::from_parse_object(e, env))
+						.collect();
+					env.create_object(LispObject::Array(arr.into_boxed_slice()))
+				}
 				LispParseTree::Pair(car, cdr) => {
 					let car = Self::from_parse_object(*car, env);
 					let cdr = Self::from_parse_object(*cdr, env);
@@ -348,6 +369,7 @@ mod runtime_object {
 		Integer(i32),
 		Float(f64),
 		Pair(ObjectReference<'a, N>, ObjectReference<'a, N>),
+		Array(Box<[ObjectReference<'a, N>]>),
 		Lambda {
 			params: SmallVec<[(SmallString, Option<LispType>); 1]>,
 			ret_ty: Option<LispType>,
@@ -372,6 +394,7 @@ mod runtime_object {
 				LispObject::Integer(_) => LispType::Integer,
 				LispObject::Float(_) => LispType::Float,
 				LispObject::Pair(..) => LispType::Pair,
+				LispObject::Array(..) => LispType::Array,
 				LispObject::Lambda { .. }
 				| LispObject::BuiltinDyadic(_)
 				| LispObject::BuiltinMonadic(_) => LispType::Function,
@@ -394,6 +417,9 @@ mod runtime_object {
 			LispObject::Integer(n) => write!(f, "{n}"),
 			LispObject::Float(n) => write!(f, "{n}"),
 			LispObject::Pair(car, cdr) => write_lisp_pair(f, *car, *cdr, env),
+			LispObject::Array(arr) => {
+				write_array(f, arr, |f, elem| write_lisp_elem(f, env.get(*elem), env))
+			}
 			LispObject::Lambda {
 				params,
 				ret_ty,
@@ -476,6 +502,7 @@ mod runtime_object {
 				LispObject::Integer(i) => f.debug_tuple("Integer").field(i).finish(),
 				LispObject::Float(fl) => f.debug_tuple("Float").field(fl).finish(),
 				LispObject::Pair(a, b) => f.debug_tuple("Pair").field(a).field(b).finish(),
+				LispObject::Array(arr) => f.debug_tuple("Array").field(arr).finish(),
 				LispObject::Lambda {
 					params,
 					ret_ty,
@@ -883,6 +910,14 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 		LispObject::Quote(inner) => {
 			LispParseTree::Quote(Box::new(lisp_object_to_parse_tree(env.get(*inner), env)))
 		}
+		LispObject::Array(arr) => {
+			let arr: Vec<LispParseTree> = arr
+				.iter()
+				.map(|e| lisp_object_to_parse_tree(env.get(*e), env))
+				.collect();
+			LispParseTree::Array(arr.into_boxed_slice())
+		}
+	}
 }
 
 #[cfg(test)]

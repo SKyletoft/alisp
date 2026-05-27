@@ -188,6 +188,11 @@ fn parse_list(input: &str) -> IResult<&str, LispParseTree> {
 	Ok((rem, LispParseTree::from(list)))
 }
 
+fn parse_array(input: &str) -> IResult<&str, LispParseTree> {
+	let (rem, list) = parse_list_gen::<'[', ']'>(input)?;
+	Ok((rem, LispParseTree::Array(list.into_boxed_slice())))
+}
+
 fn parse_type(input: &str) -> IResult<&str, LispType> {
 	match input.as_bytes() {
 		[b'i', b'3', b'2', ..] => Ok((&input[3..], LispType::Integer)),
@@ -225,7 +230,7 @@ fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
 	let Some(LispParseTree::Atom("lambda" | "λ")) = list.next() else {
 		return Err(err("lambda list was empty?"));
 	};
-	let Some(args) = list.next() else {
+	let Some(LispParseTree::Array(args)) = list.next() else {
 		return Err(err("lambda must have an argument list"));
 	};
 	let args = args
