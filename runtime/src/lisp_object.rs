@@ -24,6 +24,7 @@ mod parse_tree {
 			ret_ty: Option<LispType>,
 			body: Vec<LispParseTree>,
 		},
+		Quote(Box<LispParseTree>),
 	}
 
 	impl From<bool> for LispParseTree {
@@ -74,6 +75,7 @@ mod parse_tree {
 					LispParseTree::Float(n) => write!(f, "{n}"),
 					LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
 					LispParseTree::String(s) => write!(f, "{s:?}"),
+					LispParseTree::Quote(inner) => write!(f, "'{inner}"),
 					LispParseTree::Lambda {
 						params,
 						ret_ty,
@@ -130,13 +132,7 @@ mod parse_tree {
 					}
 				}
 			}
-			match self {
-				LispParseTree::Pair(car, cdr) => {
-					write!(f, "'")?;
-					write_pair(f, car, cdr)
-				}
-				other => write_elem(f, other),
-			}
+			write_elem(f, self)
 		}
 	}
 
@@ -176,6 +172,7 @@ mod parse_tree {
 				LispParseTree::Pair(..) => LispType::Pair,
 				LispParseTree::Lambda { .. } => LispType::Function,
 				LispParseTree::String(_) => LispType::String,
+				LispParseTree::Quote(_) => LispType::Code,
 			};
 			Some(res)
 		}
@@ -216,6 +213,8 @@ mod parse_tree {
 		Function,
 		#[display("string")]
 		String,
+		#[display("code")]
+		Code,
 	}
 
 	impl From<String> for LispType {
@@ -315,6 +314,10 @@ mod runtime_object {
 						body,
 					})
 				}
+				LispParseTree::Quote(inner) => {
+					let inner = Self::from_parse_object(*inner, env);
+					env.create_object(LispObject::Quote(inner))
+				}
 			}
 		}
 	}
@@ -344,6 +347,7 @@ mod runtime_object {
 		},
 		BuiltinDyadic(BuiltinDyadicFn<'a, N>),
 		BuiltinMonadic(BuiltinMonadicFn<'a, N>),
+		Quote(ObjectReference<'a, N>),
 	}
 
 	impl<'a, const N: usize> LispObject<'a, N> {
@@ -363,6 +367,7 @@ mod runtime_object {
 				LispObject::Lambda { .. }
 				| LispObject::BuiltinDyadic(_)
 				| LispObject::BuiltinMonadic(_) => LispType::Function,
+				LispObject::Quote(_) => LispType::Code,
 			}
 		}
 
@@ -408,6 +413,10 @@ mod runtime_object {
 			}
 			LispObject::BuiltinDyadic(_) | LispObject::BuiltinMonadic(_) => {
 				write!(f, "Builtin")
+			}
+			LispObject::Quote(inner) => {
+				write!(f, "'")?;
+				write_lisp_elem(f, env.get(*inner), env)
 			}
 		}
 	}
@@ -463,6 +472,7 @@ mod runtime_object {
 				LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
 					f.debug_struct("Builtin").finish()
 				}
+				LispObject::Quote(inner) => f.debug_tuple("Quote").field(inner).finish(),
 			}
 		}
 	}
@@ -815,6 +825,9 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 		}
 		LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
 			LispParseTree::Atom("builtin".into())
+		}
+		LispObject::Quote(inner) => {
+			LispParseTree::Quote(Box::new(lisp_object_to_parse_tree(env.get(*inner), env)))
 		}
 	}
 }

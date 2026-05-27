@@ -305,20 +305,20 @@ fn display_float() {
 #[test]
 fn display_proper_list() {
 	let list: LispParseTree = vec![1, 2, 3].into();
-	assert_eq!(format!("{list}"), "'(1 2 3)");
+	assert_eq!(format!("{list}"), "(1 2 3)");
 }
 
 #[test]
 fn display_improper_list() {
 	use crate::lisp_object::LispParseTree::*;
 	let list = Pair(Box::new(Integer(1)), Box::new(Integer(2)));
-	assert_eq!(format!("{list}"), "'(1 . 2)");
+	assert_eq!(format!("{list}"), "(1 . 2)");
 }
 
 #[test]
 fn display_nested_list() {
 	let list: LispParseTree = vec![LispParseTree::from(vec![1i32, 2]), 3i32.into()].into();
-	assert_eq!(format!("{list}"), "'((1 2) 3)");
+	assert_eq!(format!("{list}"), "((1 2) 3)");
 }
 
 #[test]

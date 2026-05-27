@@ -39,6 +39,7 @@ pub fn parse_many(
 
 fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
 	alt((
+		parse_quote,
 		parse_float,
 		parse_integer,
 		parse_lambda,
@@ -97,6 +98,12 @@ fn parse_float(input: &str) -> IResult<&str, LispParseTree> {
 		|digits: &str| LispParseTree::Float(digits.parse().expect("Nom should've validated this?")),
 	)
 	.parse(input)
+}
+
+fn parse_quote(input: &str) -> IResult<&str, LispParseTree> {
+	let (res, _) = char('\'')(input)?;
+	let (res, obj) = parse_object(res)?;
+	Ok((res, LispParseTree::Quote(Box::new(obj))))
 }
 
 fn parse_string(input: &str) -> IResult<&str, LispParseTree> {
