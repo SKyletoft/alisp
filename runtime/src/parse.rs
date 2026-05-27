@@ -314,8 +314,12 @@ mod test {
 	fn int_array() {
 		let code = "[1 2 3]";
 		let expected = LispParseTree::Array(
-			vec![LispParseTree::Integer(1), LispParseTree::Integer(2), LispParseTree::Integer(3)]
-				.into_boxed_slice(),
+			vec![
+				LispParseTree::Integer(1),
+				LispParseTree::Integer(2),
+				LispParseTree::Integer(3),
+			]
+			.into_boxed_slice(),
 		);
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
@@ -325,8 +329,12 @@ mod test {
 	fn quoted_int_array() {
 		let code = "'[1 2 3]";
 		let expected = LispParseTree::Quote(Box::new(LispParseTree::Array(
-			vec![LispParseTree::Integer(1), LispParseTree::Integer(2), LispParseTree::Integer(3)]
-				.into_boxed_slice(),
+			vec![
+				LispParseTree::Integer(1),
+				LispParseTree::Integer(2),
+				LispParseTree::Integer(3),
+			]
+			.into_boxed_slice(),
 		)));
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
