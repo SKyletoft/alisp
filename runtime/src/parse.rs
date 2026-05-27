@@ -42,6 +42,7 @@ fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
 		parse_float,
 		parse_integer,
 		parse_lambda,
+		parse_string,
 		parse_list::<'(', ')'>,
 		parse_list::<'[', ']'>,
 		parse_list::<'{', '}'>,
@@ -53,8 +54,8 @@ fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
 fn is_atom_continue(c: char) -> bool {
 	c.is_ascii_alphanumeric()
 		|| [
-			'_', '-', '+', '*', '/', '|', '&', '.', ';', ',', '~', '!', '@', '`', '´', '$', '€',
-			'£', '¤', '%', '#', '\\', '^', '<', '>', '=',
+			'_', '-', '+', '*', '/', '|', '&', '.', ';', '~', '!', '@', '`', '´', '$', '€', '£',
+			'¤', '%', '#', '\\', '^', '<', '>', '=',
 		]
 		.contains(&c)
 }
@@ -96,6 +97,62 @@ fn parse_float(input: &str) -> IResult<&str, LispParseTree> {
 		|digits: &str| LispParseTree::Float(digits.parse().expect("Nom should've validated this?")),
 	)
 	.parse(input)
+}
+
+fn parse_string(input: &str) -> IResult<&str, LispParseTree> {
+	let err = nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Char));
+
+	let mut iter = input.char_indices();
+	let Some((_, '"')) = iter.next() else {
+		return Err(err);
+	};
+
+	let mut out = String::new();
+	let mut escaped = false;
+	while let Some((idx, ch)) = iter.next() {
+		if escaped {
+			escaped = false;
+			if ch == 'x' {
+				let (_, hi) = iter.next().ok_or(err.clone())?;
+				let (_, lo) = iter.next().ok_or(err.clone())?;
+				let value = hi
+					.to_digit(16)
+					.zip(lo.to_digit(16))
+					.map(|(hi, lo)| (hi << 4) | lo)
+					.ok_or(err.clone())?;
+				out.push(char::from_u32(value).expect("hex escape should be valid"));
+				continue;
+			}
+			out.push(match ch {
+				'"' => '"',
+				'\\' => '\\',
+				'0' => '\0',
+				'a' => '\x07',
+				'b' => '\x08',
+				'f' => '\x0c',
+				'n' => '\n',
+				'r' => '\r',
+				'v' => '\x0b',
+				't' => '\t',
+				other => other,
+			});
+			continue;
+		}
+
+		match ch {
+			'\\' => escaped = true,
+			'"' => {
+				let rest = &input[idx + ch.len_utf8()..];
+				return Ok((rest, LispParseTree::String(out)));
+			}
+			other => out.push(other),
+		}
+	}
+
+	Err(nom::Err::Error(nom::error::Error::new(
+		input,
+		nom::error::ErrorKind::Char,
+	)))
 }
 
 fn parse_list<const OPEN: char, const CLOSE: char>(input: &str) -> IResult<&str, LispParseTree> {
@@ -196,6 +253,7 @@ fn err(msg: &str) -> nom::Err<nom::error::Error<&str>> {
 #[cfg(test)]
 mod test {
 	use quickcheck_macros::quickcheck;
+	use smallstr::SmallString;
 	use smallvec::smallvec;
 
 	use crate::lisp_object::LispParseTree;
@@ -414,5 +472,59 @@ mod test {
 		let expected = LispParseTree::String("hi".into());
 		let result = super::parse(code);
 		assert_eq!(Ok(expected), result);
+	}
+
+	#[quickcheck]
+	fn any_string(s: [u8; 12]) {
+		let mut buffer = SmallString::<[u8; 26]>::new();
+		let mut expected = String::new();
+		buffer.push('"');
+		for c in s.into_iter() {
+			match c {
+				b'"' => {
+					buffer.push('\\');
+					buffer.push('"');
+					expected.push('"');
+				}
+				b'\\' => {
+					buffer.push('\\');
+					buffer.push('\\');
+					expected.push('\\');
+				}
+				b'\n' => {
+					buffer.push('\\');
+					buffer.push('n');
+					expected.push('\n');
+				}
+				b'\r' => {
+					buffer.push('\\');
+					buffer.push('r');
+					expected.push('\r');
+				}
+				b'\t' => {
+					buffer.push('\\');
+					buffer.push('t');
+					expected.push('\t');
+				}
+				c if c.is_ascii_graphic() || c == b' ' => {
+					buffer.push(c as char);
+					expected.push(c as char);
+				}
+				c if (0xA0..=0xFF).contains(&c) => {
+					buffer.push(char::from(c));
+					expected.push(char::from(c));
+				}
+				c => {
+					buffer.push('\\');
+					buffer.push('x');
+					buffer.push(char::from_digit((c >> 4) as u32, 16).expect("hex digit"));
+					buffer.push(char::from_digit((c & 0x0F) as u32, 16).expect("hex digit"));
+					expected.push(c as char);
+				}
+			}
+		}
+		buffer.push('"');
+		let result = super::parse(&buffer);
+		assert_eq!(Ok(LispParseTree::String(expected)), result);
 	}
 }
