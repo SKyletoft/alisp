@@ -81,17 +81,11 @@ mod parse_tree {
 						ret_ty,
 						body,
 					} => {
-						write!(f, "(λ [")?;
-						for (i, (name, ty)) in params.iter().enumerate() {
-							if i > 0 {
-								write!(f, " ")?;
-							}
-							match ty {
-								Some(ty) => write!(f, "({name} {ty})")?,
-								None => write!(f, "{name}")?,
-							}
-						}
-						write!(f, "]")?;
+						write!(f, "(λ ")?;
+						write_array(f, params, |f, (name, ty)| match ty {
+							Some(ty) => write!(f, "({name} {ty})"),
+							None => write!(f, "{name}"),
+						})?;
 						if let Some(ret_ty) = ret_ty {
 							write!(f, " -> {ret_ty}")?;
 						}
@@ -105,6 +99,21 @@ mod parse_tree {
 						write!(f, ")")
 					}
 				}
+			}
+
+			fn write_array<T>(
+				f: &mut fmt::Formatter<'_>,
+				arr: &[T],
+				mut write_elem: impl FnMut(&mut fmt::Formatter<'_>, &T) -> fmt::Result,
+			) -> fmt::Result {
+				write!(f, "[")?;
+				for (i, elem) in arr.iter().enumerate() {
+					if i > 0 {
+						write!(f, " ")?;
+					}
+					write_elem(f, elem)?;
+				}
+				write!(f, "]")
 			}
 
 			fn write_pair(
@@ -391,17 +400,11 @@ mod runtime_object {
 				ret_ty,
 				body,
 			} => {
-				write!(f, "(λ [")?;
-				for (i, (name, ty)) in params.iter().enumerate() {
-					if i > 0 {
-						write!(f, " ")?;
-					}
-					match ty {
-						Some(ty) => write!(f, "({name} {ty})")?,
-						None => write!(f, "{name}")?,
-					}
-				}
-				write!(f, "]")?;
+				write!(f, "(λ ")?;
+				write_array(f, params, |f, (name, ty)| match ty {
+					Some(ty) => write!(f, "({name} {ty})"),
+					None => write!(f, "{name}"),
+				})?;
 				if let Some(ret_ty) = ret_ty {
 					write!(f, " -> {ret_ty}")?;
 				}
@@ -419,6 +422,21 @@ mod runtime_object {
 				write_lisp_elem(f, env.get(*inner), env)
 			}
 		}
+	}
+
+	fn write_array<T>(
+		f: &mut fmt::Formatter<'_>,
+		arr: &[T],
+		mut write_elem: impl FnMut(&mut fmt::Formatter<'_>, &T) -> fmt::Result,
+	) -> fmt::Result {
+		write!(f, "[")?;
+		for (i, elem) in arr.iter().enumerate() {
+			if i > 0 {
+				write!(f, " ")?;
+			}
+			write_elem(f, elem)?;
+		}
+		write!(f, "]")
 	}
 
 	fn write_lisp_pair<'a, const N: usize>(
