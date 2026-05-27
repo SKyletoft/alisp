@@ -567,6 +567,7 @@ mod runtime_object {
 	static ENV_IN_USE: [AtomicBool; 64] = unsafe { std::mem::transmute([false; 64]) };
 
 	impl<'a, const N: usize> Env<'a, N> {
+		#[allow(clippy::result_unit_err)]
 		pub fn new() -> Result<Self, ()> {
 			if ENV_IN_USE[N].swap(true, Ordering::SeqCst) {
 				Err(())
@@ -944,7 +945,10 @@ mod iter_test {
 	fn list_iter_multi() {
 		let list: LispParseTree = vec![1, 2, 3].into();
 		let items: Vec<LispParseTree> = list.into_iter().collect();
-		assert_eq!(items, (1..=3).map(LispParseTree::Integer).collect::<Vec<_>>());
+		assert_eq!(
+			items,
+			(1..=3).map(LispParseTree::Integer).collect::<Vec<_>>()
+		);
 	}
 
 	#[test]
@@ -965,7 +969,10 @@ mod iter_test {
 	fn array_iter_multi() {
 		let arr = LispParseTree::Array(Box::new([1, 2, 3].map(LispParseTree::Integer)));
 		let items: Vec<LispParseTree> = arr.into_iter().collect();
-		assert_eq!(items, (1..=3).map(LispParseTree::Integer).collect::<Vec<_>>());
+		assert_eq!(
+			items,
+			(1..=3).map(LispParseTree::Integer).collect::<Vec<_>>()
+		);
 	}
 
 	#[quickcheck]

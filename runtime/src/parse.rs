@@ -10,7 +10,6 @@ use smallvec::SmallVec;
 
 use crate::lisp_object::{LispParseTree, LispType, SmallString};
 
-#[allow(clippy::result_unit_err)]
 pub fn parse(code: &str) -> Result<LispParseTree, String> {
 	match parse_object(code) {
 		Ok(("", ret)) => Ok(ret),
@@ -19,7 +18,6 @@ pub fn parse(code: &str) -> Result<LispParseTree, String> {
 	}
 }
 
-#[allow(clippy::result_unit_err)]
 pub fn parse_many(
 	code: &str,
 ) -> Result<SmallVec<[LispParseTree; 1]>, nom::Err<nom::error::Error<&str>>> {
