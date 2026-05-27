@@ -414,3 +414,11 @@ fn set_and_get() {
 	let res = eval(code);
 	assert_eq!(res, expected);
 }
+
+#[test]
+fn set_quote() {
+	let code = "(set 'id 'x) (set id 5) x";
+	let expected = 5.into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}
