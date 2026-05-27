@@ -132,8 +132,8 @@ fn parse_argument(
 		LispParseTree::Atom(name) => Ok((name, None)),
 		LispParseTree::Pair(
 			LispParseTree::Atom(name),
-			LispParseTree::Pair(LispParseTree::Atom(ty), rest),
-		) if *rest == LispParseTree::Atom("nil".into()) => {
+			LispParseTree::Pair(LispParseTree::Atom(ty), LispParseTree::Atom("nil")),
+		) => {
 			let Ok(("", ty)) = parse_type(&ty) else {
 				return Err(nom::Err::Error(nom::error::Error::new(
 					"Unparseable type name",
