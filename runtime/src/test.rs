@@ -406,3 +406,11 @@ fn display_partial_typed_lambda() {
 	};
 	assert_eq!(format!("{lambda}"), "(λ [(x i32) y] -> bool body)");
 }
+
+#[test]
+fn set_and_get() {
+	let code = "(set 'x 5) x";
+	let expected = 5.into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}

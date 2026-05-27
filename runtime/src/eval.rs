@@ -15,6 +15,8 @@ pub enum RuntimeError {
 	NoCurrying,
 	#[display("Division by zero")]
 	DivisionByZero,
+	#[display("Assignment to non-identifier")]
+	AssignmentToNonVariable,
 }
 
 fn type_guard(expected: &Option<LispType>, actual: &Option<LispType>) -> Result<(), RuntimeError> {

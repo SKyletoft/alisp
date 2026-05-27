@@ -523,7 +523,6 @@ mod runtime_object {
 	static ENV_IN_USE: [AtomicBool; 64] = unsafe { std::mem::transmute([false; 64]) };
 
 	impl<'a, const N: usize> Env<'a, N> {
-		#[inline(always)]
 		pub fn new() -> Result<Self, ()> {
 			if ENV_IN_USE[N].swap(true, Ordering::SeqCst) {
 				Err(())
@@ -537,6 +536,17 @@ mod runtime_object {
 				// ret.stack.push(("t".into(), t_ref));
 				// let nil_ref = ret.create_object(LispObject::Atom("nil".into()));
 				// ret.stack.push(("nil".into(), nil_ref));
+				ret.push_builtin_dyadic("set", |id, val, env| {
+					if let LispObject::Quote(obj_ref) = id
+						&& let LispObject::Atom(ident) = obj_ref.get(env)
+					{
+						let ident = ident.clone();
+						*env.get_stack_var_mut(&ident) = val;
+						Ok(obj_ref)
+					} else {
+						Err(RuntimeError::AssignmentToNonVariable)
+					}
+				});
 				ret.push_builtin_dyadic("+", |l, r, env| match (l, r) {
 					(LispObject::Float(x), LispObject::Float(y)) => {
 						Ok(env.create_object(LispObject::Float(x + y)))
@@ -777,6 +787,33 @@ mod runtime_object {
 		#[inline(always)]
 		pub fn nil(&mut self) -> ObjectReference<'a, N> {
 			self.create_object(LispObject::Atom("nil".into()))
+		}
+
+		pub fn get_stack_var(&self, id: &str) -> Result<ObjectReference<'a, N>, RuntimeError> {
+			self.stack
+				.iter()
+				.rev()
+				.find(|(s, _)| id == s.as_str())
+				.map(|(_, val)| *val)
+				.ok_or(RuntimeError::UndefinedVariable)
+		}
+
+		pub fn get_stack_var_mut(&mut self, id: &str) -> &mut LispObject<'a, N> {
+			let obj_ref = self
+				.stack
+				.iter()
+				.rev()
+				.find(|(s, _)| id == s.as_str())
+				.map(|(_, val)| *val);
+			let r = match obj_ref {
+				Some(r) => r,
+				None => {
+					let r = self.create_object(LispObject::Atom("nil".into()));
+					self.stack.push((id.into(), r));
+					r
+				}
+			};
+			self.get_mut(r)
 		}
 	}
 
