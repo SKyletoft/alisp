@@ -44,9 +44,9 @@ fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
 		parse_integer,
 		parse_lambda,
 		parse_string,
-		parse_list::<'(', ')'>,
-		parse_list::<'[', ']'>,
-		parse_list::<'{', '}'>,
+		parse_list,
+		parse_array,
+		// parse_map,
 		parse_atom,
 	))
 	.parse(code)
@@ -162,7 +162,9 @@ fn parse_string(input: &str) -> IResult<&str, LispParseTree> {
 	)))
 }
 
-fn parse_list<const OPEN: char, const CLOSE: char>(input: &str) -> IResult<&str, LispParseTree> {
+fn parse_list_gen<const OPEN: char, const CLOSE: char>(
+	input: &str,
+) -> IResult<&str, Vec<LispParseTree>> {
 	let mut list = Vec::new();
 	let (mut rem, _) = pair(char(OPEN), multispace0).parse(input)?;
 
@@ -178,7 +180,12 @@ fn parse_list<const OPEN: char, const CLOSE: char>(input: &str) -> IResult<&str,
 		list.push(item);
 	}
 
-	Ok((rem, list.into()))
+	Ok((rem, list))
+}
+
+fn parse_list(input: &str) -> IResult<&str, LispParseTree> {
+	let (rem, list) = parse_list_gen::<'(', ')'>(input)?;
+	Ok((rem, LispParseTree::from(list)))
 }
 
 fn parse_type(input: &str) -> IResult<&str, LispType> {
@@ -214,8 +221,8 @@ fn parse_argument(
 }
 
 fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
-	let (rem, mut list) = parse_list::<'(', ')'>(input)?;
-	let Some(LispParseTree::Atom("lambda")) = list.next() else {
+	let (rem, mut list) = parse_list(input)?;
+	let Some(LispParseTree::Atom("lambda" | "λ")) = list.next() else {
 		return Err(err("lambda list was empty?"));
 	};
 	let Some(args) = list.next() else {
