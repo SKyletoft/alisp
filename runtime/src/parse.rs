@@ -303,6 +303,36 @@ mod test {
 	}
 
 	#[test]
+	fn quoted_int_list() {
+		let code = "'(1 2 3)";
+		let expected = LispParseTree::Quote(Box::new(LispParseTree::from(vec![1, 2, 3])));
+		let result = super::parse(code);
+		assert_eq!(result, Ok(expected));
+	}
+
+	#[test]
+	fn int_array() {
+		let code = "[1 2 3]";
+		let expected = LispParseTree::Array(
+			vec![LispParseTree::Integer(1), LispParseTree::Integer(2), LispParseTree::Integer(3)]
+				.into_boxed_slice(),
+		);
+		let result = super::parse(code);
+		assert_eq!(result, Ok(expected));
+	}
+
+	#[test]
+	fn quoted_int_array() {
+		let code = "'[1 2 3]";
+		let expected = LispParseTree::Quote(Box::new(LispParseTree::Array(
+			vec![LispParseTree::Integer(1), LispParseTree::Integer(2), LispParseTree::Integer(3)]
+				.into_boxed_slice(),
+		)));
+		let result = super::parse(code);
+		assert_eq!(result, Ok(expected));
+	}
+
+	#[test]
 	fn whitespace_after_number() {
 		let code = "123a";
 		let result = dbg!(super::parse(code));
