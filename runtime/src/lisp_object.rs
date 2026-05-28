@@ -10,7 +10,7 @@ mod parse_tree {
 
 	use super::SmallString;
 
-	#[derive(Debug, PartialEq, Clone, derive_more::From, variantly::Variantly)]
+	#[derive(Debug, PartialEq, Clone, variantly::Variantly)]
 	pub enum LispParseTree {
 		Atom(SmallString),
 		Integer(i32 /* TODO: Bigints */),
@@ -946,21 +946,21 @@ mod iter_test {
 
 	#[test]
 	fn list_iter_empty() {
-		let list: LispParseTree = Vec::<i32>::new().into();
+		let list: LispParseTree = Vec::<LispParseTree>::new().into();
 		let items: Vec<LispParseTree> = list.into_iter().collect();
 		assert!(items.is_empty());
 	}
 
 	#[test]
 	fn list_iter_one() {
-		let list: LispParseTree = vec![42].into();
+		let list: LispParseTree = vec![LispParseTree::Integer(42)].into();
 		let items: Vec<LispParseTree> = list.into_iter().collect();
 		assert_eq!(items, vec![LispParseTree::Integer(42)]);
 	}
 
 	#[test]
 	fn list_iter_multi() {
-		let list: LispParseTree = vec![1, 2, 3].into();
+		let list: LispParseTree = vec![LispParseTree::Integer(1), LispParseTree::Integer(2), LispParseTree::Integer(3)].into();
 		let items: Vec<LispParseTree> = list.into_iter().collect();
 		assert_eq!(
 			items,
@@ -994,7 +994,7 @@ mod iter_test {
 
 	#[quickcheck]
 	fn list_iter_equals_vec(v: Vec<i32>) {
-		let list: LispParseTree = v.clone().into();
+		let list: LispParseTree = v.iter().map(|&n| LispParseTree::Integer(n)).collect::<Vec<_>>().into();
 		let items: Vec<LispParseTree> = list.into_iter().collect();
 		let expected: Vec<LispParseTree> = v.into_iter().map(LispParseTree::Integer).collect();
 		assert_eq!(items, expected);
@@ -1010,7 +1010,7 @@ mod iter_test {
 
 	#[quickcheck]
 	fn list_and_array_iter_match(v: Vec<i32>) {
-		let list: LispParseTree = v.clone().into();
+		let list: LispParseTree = v.iter().map(|&n| LispParseTree::Integer(n)).collect::<Vec<_>>().into();
 		let arr = LispParseTree::Array(v.iter().map(|&n| LispParseTree::Integer(n)).collect());
 		let list_items: Vec<LispParseTree> = list.into_iter().collect();
 		let arr_items: Vec<LispParseTree> = arr.into_iter().collect();
