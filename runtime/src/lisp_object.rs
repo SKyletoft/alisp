@@ -25,6 +25,8 @@ mod parse_tree {
 			body: Vec<LispParseTree>,
 		},
 		Quote(Box<LispParseTree>),
+		Quasiquote(Box<LispParseTree>),
+		// Unquote(Box<LispParseTree>),
 		Macro {
 			params: SmallVec<[SmallString; 1]>,
 			body: Vec<LispParseTree>,
@@ -80,6 +82,7 @@ mod parse_tree {
 					LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
 					LispParseTree::String(s) => write!(f, "{s:?}"),
 					LispParseTree::Quote(inner) => write!(f, "'{inner}"),
+					LispParseTree::Quasiquote(_) => todo!(),
 					LispParseTree::Array(arr) => write_array(f, arr, write_elem),
 					LispParseTree::Lambda {
 						params,
@@ -197,6 +200,7 @@ mod parse_tree {
 				LispParseTree::String(_) => LispType::String,
 				LispParseTree::Array(..) => LispType::Array,
 				LispParseTree::Quote(_) => LispType::Code,
+				LispParseTree::Quasiquote(_) => todo!(),
 				LispParseTree::Macro { .. } => LispType::Macro,
 			};
 			Some(res)
@@ -355,6 +359,7 @@ mod runtime_object {
 					let inner = Self::from_parse_object(*inner, env);
 					env.create_object(LispObject::Quote(inner))
 				}
+				LispParseTree::Quasiquote(_) => todo!(),
 				LispParseTree::Macro { .. } => todo!(),
 			}
 		}

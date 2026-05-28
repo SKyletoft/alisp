@@ -135,6 +135,7 @@ pub fn parse_many(
 fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
 	alt((
 		parse_quote,
+		parse_quasiquote,
 		parse_float,
 		parse_integer,
 		parse_string,
@@ -198,6 +199,12 @@ fn parse_quote(input: &str) -> IResult<&str, LispParseTree> {
 	let (res, _) = char('\'')(input)?;
 	let (res, obj) = parse_object(res)?;
 	Ok((res, LispParseTree::Quote(Box::new(obj))))
+}
+
+fn parse_quasiquote(input: &str) -> IResult<&str, LispParseTree> {
+	let (res, _) = char('`')(input)?;
+	let (res, obj) = parse_object(res)?;
+	Ok((res, LispParseTree::Quasiquote(Box::new(obj))))
 }
 
 fn parse_string(input: &str) -> IResult<&str, LispParseTree> {
@@ -326,6 +333,10 @@ mod test {
 		LispParseTree::Quote(Box::new(l))
 	}
 
+	fn quasiquote(l: LispParseTree) -> LispParseTree {
+		LispParseTree::Quasiquote(Box::new(l))
+	}
+
 	fn list<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
 		ls.into_iter().collect::<Vec<_>>().into()
 	}
@@ -383,6 +394,14 @@ mod test {
 	}
 
 	#[test]
+	fn quasiquoted_int_list() {
+		let code = "`(1 2 3)";
+		let expected = quasiquote(list([int(1), int(2), int(3)]));
+		let result = super::parse(code);
+		assert_eq!(result, Ok(expected));
+	}
+
+	#[test]
 	fn int_array() {
 		let code = "[1 2 3]";
 		let expected = array([int(1), int(2), int(3)]);
@@ -394,6 +413,14 @@ mod test {
 	fn quoted_int_array() {
 		let code = "'[1 2 3]";
 		let expected = quote(array([int(1), int(2), int(3)]));
+		let result = super::parse(code);
+		assert_eq!(result, Ok(expected));
+	}
+
+	#[test]
+	fn quasiquoted_int_array() {
+		let code = "`[1 2 3]";
+		let expected = quasiquote(array([int(1), int(2), int(3)]));
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
 	}
