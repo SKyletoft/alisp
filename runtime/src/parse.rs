@@ -732,4 +732,26 @@ mod test {
 		let result = super::parse(&buffer);
 		assert_eq!(Ok(LispParseTree::String(expected)), result);
 	}
+
+	#[test]
+	fn macro_no_args() {
+		let result = super::parse("(macro [] body)").unwrap();
+		assert_eq!(
+			result,
+			vec![
+				LispParseTree::from("macro"),
+				LispParseTree::Array(Box::new([])),
+				LispParseTree::from("body")
+			]
+			.into()
+		);
+		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
+		assert_eq!(
+			with_lambdas,
+			LispParseTree::Macro {
+				params: smallvec![],
+				body: vec![LispParseTree::Atom("body".into())].into(),
+			}
+		);
+	}
 }
