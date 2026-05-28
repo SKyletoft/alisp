@@ -374,6 +374,39 @@ mod test {
 	}
 
 	#[test]
+	fn define_lambda_no_args() {
+		let result = super::parse("(set 'f (lambda [] body))").unwrap();
+		assert_eq!(
+			result,
+			vec![
+				LispParseTree::from("set"),
+				LispParseTree::Quote(LispParseTree::Atom("f".into()).into()),
+				vec![
+					LispParseTree::from("lambda"),
+					LispParseTree::Array(Box::new([])),
+					LispParseTree::from("body")
+				]
+				.into()
+			]
+			.into()
+		);
+		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
+		assert_eq!(
+			with_lambdas,
+			vec![
+				LispParseTree::from("set"),
+				LispParseTree::Quote(LispParseTree::Atom("f".into()).into()),
+				LispParseTree::Lambda {
+					params: smallvec![],
+					ret_ty: None,
+					body: vec![LispParseTree::Atom("body".into())].into(),
+				}
+			]
+			.into()
+		);
+	}
+
+	#[test]
 	fn lambda_one_arg_no_types() {
 		let result = super::parse("(lambda [x] body)").unwrap();
 		assert_eq!(
