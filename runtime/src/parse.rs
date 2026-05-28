@@ -16,7 +16,7 @@ pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'stat
 			let Some(LispParseTree::Array(args)) = list.next() else {
 				return Err("lambda must have an argument list");
 			};
-			let args = args
+			let params = args
 				.into_iter()
 				.map(parse_argument)
 				.collect::<Result<SmallVec<_>, _>>()?;
@@ -44,12 +44,26 @@ pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'stat
 			};
 
 			Ok(LispParseTree::Lambda {
-				params: args,
+				params,
 				ret_ty,
 				body,
 			})
 		}
-		LispParseTree::Pair(LispParseTree::Atom("macro"), _) => todo!(),
+		LispParseTree::Pair(LispParseTree::Atom("macro"), mut list) => {
+			let Some(LispParseTree::Array(args)) = list.next() else {
+				return Err("macro must have an argument list");
+			};
+			let params = args
+				.into_iter()
+				.map(LispParseTree::atom)
+				.collect::<Option<SmallVec<[SmallString; _]>>>()
+				.ok_or("macro argument list contained non-atoms")?;
+			let body = list
+				.into_iter()
+				.map(pre_evaluate_lambdas)
+				.collect::<Result<Vec<_>, _>>()?;
+			Ok(LispParseTree::Macro { params, body })
+		}
 		LispParseTree::Pair(head, tail) => {
 			let head = pre_evaluate_lambdas(*head)?;
 			let tail = pre_evaluate_lambdas(*tail)?;
