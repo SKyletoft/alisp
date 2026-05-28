@@ -127,14 +127,10 @@ fn eval_lambda<'a>(
 			LispObject::Pair(name_ref, rest_ref)
 				if let LispObject::Atom(name) = name_ref.get(env)
 					&& let LispObject::Pair(ty_ref, nil_ref) = rest_ref.get(env)
-					&& let LispObject::Atom(ty_str) = ty_ref.get(env)
+					&& let LispObject::Atom(type_name) = ty_ref.get(env)
 					&& let LispObject::Atom("nil") = nil_ref.get(env) =>
 			{
-				let ty = match ty_str.as_str() {
-					"i32" => LispType::Integer,
-					"f64" => LispType::Float,
-					id => LispType::Named(id.into()),
-				};
+				let ty = crate::parse::parse_type(type_name);
 				Ok((name.clone(), Some(ty)))
 			}
 			_ => Err(RuntimeError::BrokenLambda {
