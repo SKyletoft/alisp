@@ -19,7 +19,6 @@ pub fn pre_evaluate_lambdas(mut list: LispParseTree) -> Result<LispParseTree, &'
 			let args = args
 				.into_iter()
 				.map(parse_argument)
-				.take(10_000)
 				.collect::<Result<SmallVec<_>, _>>()?;
 			let Some(body_or_arrow) = list.next() else {
 				return Err("lambda must have a body");
