@@ -435,9 +435,11 @@ mod test {
 			result,
 			vec![
 				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([
-					vec![LispParseTree::from("x"), LispParseTree::from("i32")].into()
-				])),
+				LispParseTree::Array(Box::new([vec![
+					LispParseTree::from("x"),
+					LispParseTree::from("i32")
+				]
+				.into()])),
 				LispParseTree::from("->"),
 				LispParseTree::from("i32"),
 				LispParseTree::from("body")
@@ -549,9 +551,11 @@ mod test {
 			result,
 			vec![
 				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([
-					vec![LispParseTree::from("x"), LispParseTree::from("i32")].into()
-				])),
+				LispParseTree::Array(Box::new([vec![
+					LispParseTree::from("x"),
+					LispParseTree::from("i32")
+				]
+				.into()])),
 				LispParseTree::from("body")
 			]
 			.into()
@@ -601,11 +605,7 @@ mod test {
 			vec![
 				LispParseTree::from("lambda"),
 				LispParseTree::Array(Box::new([LispParseTree::from("x")])),
-				vec![
-					LispParseTree::from("println"),
-					LispParseTree::from("x")
-				]
-				.into(),
+				vec![LispParseTree::from("println"), LispParseTree::from("x")].into(),
 				vec![
 					LispParseTree::from("+"),
 					LispParseTree::from("x"),

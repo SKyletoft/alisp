@@ -112,7 +112,7 @@ fn eval_lambda<'a>(
 	env: &mut Env<'a>,
 	mut xs: ObjectReference<'a>,
 ) -> Result<ObjectReference<'a>, RuntimeError> {
-	let arr_ref = xs.next(env).ok_or(	RuntimeError::BrokenLambda {
+	let arr_ref = xs.next(env).ok_or(RuntimeError::BrokenLambda {
 		msg: "lambda must have an argument array",
 	})?;
 	let LispObject::Array(args) = arr_ref.get(env) else {
@@ -143,7 +143,9 @@ fn eval_lambda<'a>(
 		})
 		.collect::<Result<SmallVec<_>, _>>()?;
 	let Some(body_first) = xs.next(env) else {
-		return Err(RuntimeError::BrokenLambda { msg: "lambda must have a body" });
+		return Err(RuntimeError::BrokenLambda {
+			msg: "lambda must have a body",
+		});
 	};
 	let (ret_ty, body) = match body_first.get(env) {
 		LispObject::Atom("->" | "→")
