@@ -10,6 +10,43 @@ use smallvec::SmallVec;
 
 use crate::lisp_object::{LispParseTree, LispType, SmallString};
 
+pub fn pre_evaluate_lambdas(mut list: LispParseTree) -> Result<LispParseTree, &'static str> {
+	let Some(LispParseTree::Atom("lambda" | "λ")) = list.next() else {
+		return Err("lambda list was empty?");
+	};
+	let Some(LispParseTree::Array(args)) = list.next() else {
+		return Err("lambda must have an argument list");
+	};
+	let args = args
+		.into_iter()
+		.map(parse_argument)
+		.take(10_000)
+		.collect::<Result<SmallVec<_>, _>>()?;
+	let Some(body_or_arrow) = list.next() else {
+		return Err("lambda must have a body");
+	};
+	let (ret_ty, body) = match body_or_arrow {
+		LispParseTree::Atom("->") => {
+			let Some(LispParseTree::Atom(type_name)) = list.next() else {
+				return Err("lambda return type expected after ->");
+			};
+			let ty = parse_type(&type_name);
+			(Some(ty), list.into_iter().collect())
+		}
+		body => {
+			let mut body_vec = vec![body];
+			body_vec.extend(list);
+			(None, body_vec)
+		}
+	};
+
+	Ok(LispParseTree::Lambda {
+		params: args,
+		ret_ty,
+		body,
+	})
+}
+
 pub fn parse(code: &str) -> Result<LispParseTree, String> {
 	match parse_object(code) {
 		Ok(("", ret)) => Ok(ret),
@@ -40,7 +77,6 @@ fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
 		parse_quote,
 		parse_float,
 		parse_integer,
-		parse_lambda,
 		parse_string,
 		parse_list,
 		parse_array,
@@ -191,80 +227,27 @@ fn parse_array(input: &str) -> IResult<&str, LispParseTree> {
 	Ok((rem, LispParseTree::Array(list.into_boxed_slice())))
 }
 
-fn parse_type(input: &str) -> IResult<&str, LispType> {
-	match input.as_bytes() {
-		[b'i', b'3', b'2', ..] => Ok((&input[3..], LispType::Integer)),
-		[b'f', b'6', b'4', ..] => Ok((&input[3..], LispType::Float)),
-		_ => parse_identifier(input).map(|(r, id)| (r, LispType::Named(id.into()))),
+pub(crate) fn parse_type(input: &str) -> LispType {
+	assert!(parse_identifier(input).is_ok());
+	match input {
+		"i32" => LispType::Integer,
+		"f64" => LispType::Float,
+		id => LispType::Named(id.into()),
 	}
 }
 
-fn parse_argument(
-	obj: LispParseTree,
-) -> Result<(SmallString, Option<LispType>), nom::Err<nom::error::Error<&'static str>>> {
+fn parse_argument(obj: LispParseTree) -> Result<(SmallString, Option<LispType>), &'static str> {
 	match obj {
 		LispParseTree::Atom(name) => Ok((name, None)),
 		LispParseTree::Pair(
 			LispParseTree::Atom(name),
 			LispParseTree::Pair(LispParseTree::Atom(ty), LispParseTree::Atom("nil")),
 		) => {
-			let Ok(("", ty)) = parse_type(&ty) else {
-				return Err(nom::Err::Error(nom::error::Error::new(
-					"Unparseable type name",
-					nom::error::ErrorKind::Tag,
-				)));
-			};
+			let ty = parse_type(&ty);
 			Ok((name, Some(ty)))
 		}
-		_ => Err(nom::Err::Error(nom::error::Error::new(
-			"Non-argument in argument position",
-			nom::error::ErrorKind::Tag,
-		))),
+		_ => Err("Non-argument in argument position"),
 	}
-}
-
-fn parse_lambda(input: &str) -> IResult<&str, LispParseTree> {
-	let (rem, mut list) = parse_list(input)?;
-	let Some(LispParseTree::Atom("lambda" | "λ")) = list.next() else {
-		return Err(err("lambda list was empty?"));
-	};
-	let Some(LispParseTree::Array(args)) = list.next() else {
-		return Err(err("lambda must have an argument list"));
-	};
-	let args = args
-		.into_iter()
-		.map(parse_argument)
-		.take(10_000)
-		.collect::<Result<SmallVec<_>, _>>()?;
-	let Some(body_or_arrow) = list.next() else {
-		return Err(err("lambda must have a body"));
-	};
-	let (ret_ty, body) = match body_or_arrow {
-		LispParseTree::Atom("->") => {
-			let Some(LispParseTree::Atom(type_name)) = list.next() else {
-				return Err(err("lambda return type expected after ->"));
-			};
-			let ty = parse_type(&type_name)
-				.map_err(|_| err("lambda return type is unparseable"))?
-				.1;
-			(Some(ty), list.into_iter().collect())
-		}
-		body => {
-			let mut body_vec = vec![body];
-			body_vec.extend(list);
-			(None, body_vec)
-		}
-	};
-	let ret = LispParseTree::Lambda {
-		params: args,
-		ret_ty,
-		body,
-	};
-	Ok((rem, ret))
-}
-
-fn err(msg: &str) -> nom::Err<nom::error::Error<&str>> {
-	nom::Err::Error(nom::error::Error::new(msg, nom::error::ErrorKind::Tag))
 }
 
 #[cfg(test)]
