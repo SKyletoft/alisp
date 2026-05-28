@@ -148,7 +148,7 @@ fn eval_macro<'a>(
 				msg: "macro should not have a return type",
 			});
 		}
-		_ => [body_first].into_iter().chain(xs.iter(env)).collect(),
+		_ => std::iter::chain(std::iter::once(body_first), xs.iter(env)).collect(),
 	};
 	Ok(env.create_object(LispObject::Macro { params, body }))
 }
@@ -203,7 +203,7 @@ fn eval_lambda<'a>(
 			});
 		}
 		_ => {
-			let body = [body_first].into_iter().chain(xs.iter(env)).collect();
+			let body = std::iter::chain(std::iter::once(body_first), xs.iter(env)).collect();
 			(None, body)
 		}
 	};
