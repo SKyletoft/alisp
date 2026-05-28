@@ -438,6 +438,48 @@ mod test {
 	}
 
 	#[test]
+	fn lambda_in_lambda() {
+		let result = super::parse("(set 'f (lambda [] (set 'g (lambda [x] x))))").unwrap();
+		assert_eq!(
+			result,
+			list([
+				atom("set"),
+				quote(atom("f")),
+				list([
+					atom("lambda"),
+					array([]),
+					list([
+						atom("set"),
+						quote(atom("g")),
+						list([atom("lambda"), array([atom("x")]), atom("x"),])
+					])
+				])
+			])
+		);
+		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
+		assert_eq!(
+			with_lambdas,
+			list([
+				atom("set"),
+				quote(atom("f")),
+				LispParseTree::Lambda {
+					params: smallvec![],
+					ret_ty: None,
+					body: vec![list([
+						atom("set"),
+						quote(atom("g")),
+						LispParseTree::Lambda {
+							params: smallvec![("x".into(), None)],
+							ret_ty: None,
+							body: vec![atom("x")]
+						}
+					])]
+				}
+			])
+		);
+	}
+
+	#[test]
 	fn lambda_one_arg_no_types() {
 		let result = super::parse("(lambda [x] body)").unwrap();
 		assert_eq!(
