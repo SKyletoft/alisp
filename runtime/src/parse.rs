@@ -24,7 +24,7 @@ pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'stat
 				return Err("lambda must have a body");
 			};
 			let (ret_ty, body) = match body_or_arrow {
-				LispParseTree::Atom("->") => {
+				LispParseTree::Atom("->" | "→") => {
 					let Some(LispParseTree::Atom(type_name)) = list.next() else {
 						return Err("lambda return type expected after ->");
 					};
@@ -387,14 +387,14 @@ mod test {
 	#[test]
 	fn whitespace_after_number() {
 		let code = "123a";
-		let result = dbg!(super::parse(code));
+		let result = super::parse(code);
 		assert!(result.is_err());
 	}
 
 	#[test]
 	fn floats() {
 		let code = "123.456";
-		let result = dbg!(super::parse(code));
+		let result = super::parse(code);
 		// Parse the string instead of hardcoding the float to make sure we use the same
 		// stdlib float parser and not some custom one from rustc
 		let expected = float(code.parse().unwrap());
@@ -511,9 +511,9 @@ mod test {
 			result,
 			vec![
 				atom("lambda"),
-				LispParseTree::Array(Box::new([vec![atom("x"), atom("i32")].into(), atom("y")])),
+				array([list([atom("x"), atom("i32")]), atom("y")]),
 				atom("->"),
-				LispParseTree::from("bool"),
+				atom("bool"),
 				atom("body")
 			]
 			.into()
