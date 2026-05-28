@@ -11,40 +11,43 @@ use smallvec::SmallVec;
 use crate::lisp_object::{LispParseTree, LispType, SmallString};
 
 pub fn pre_evaluate_lambdas(mut list: LispParseTree) -> Result<LispParseTree, &'static str> {
-	let Some(LispParseTree::Atom("lambda" | "λ")) = list.next() else {
-		return Err("lambda list was empty?");
-	};
-	let Some(LispParseTree::Array(args)) = list.next() else {
-		return Err("lambda must have an argument list");
-	};
-	let args = args
-		.into_iter()
-		.map(parse_argument)
-		.take(10_000)
-		.collect::<Result<SmallVec<_>, _>>()?;
-	let Some(body_or_arrow) = list.next() else {
-		return Err("lambda must have a body");
-	};
-	let (ret_ty, body) = match body_or_arrow {
-		LispParseTree::Atom("->") => {
-			let Some(LispParseTree::Atom(type_name)) = list.next() else {
-				return Err("lambda return type expected after ->");
+	match list.next() {
+		Some(LispParseTree::Atom("lambda" | "λ")) => {
+			let Some(LispParseTree::Array(args)) = list.next() else {
+				return Err("lambda must have an argument list");
 			};
-			let ty = parse_type(&type_name);
-			(Some(ty), list.into_iter().collect())
-		}
-		body => {
-			let mut body_vec = vec![body];
-			body_vec.extend(list);
-			(None, body_vec)
-		}
-	};
+			let args = args
+				.into_iter()
+				.map(parse_argument)
+				.take(10_000)
+				.collect::<Result<SmallVec<_>, _>>()?;
+			let Some(body_or_arrow) = list.next() else {
+				return Err("lambda must have a body");
+			};
+			let (ret_ty, body) = match body_or_arrow {
+				LispParseTree::Atom("->") => {
+					let Some(LispParseTree::Atom(type_name)) = list.next() else {
+						return Err("lambda return type expected after ->");
+					};
+					let ty = parse_type(&type_name);
+					(Some(ty), list.into_iter().collect())
+				}
+				body => {
+					let mut body_vec = vec![body];
+					body_vec.extend(list);
+					(None, body_vec)
+				}
+			};
 
-	Ok(LispParseTree::Lambda {
-		params: args,
-		ret_ty,
-		body,
-	})
+			Ok(LispParseTree::Lambda {
+				params: args,
+				ret_ty,
+				body,
+			})
+		}
+		Some(LispParseTree::Atom("macro")) => todo!(),
+		_ => return Err("lambda list was empty?"),
+	}
 }
 
 pub fn parse(code: &str) -> Result<LispParseTree, String> {
