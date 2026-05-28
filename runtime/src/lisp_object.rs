@@ -76,7 +76,7 @@ mod parse_tree {
 					LispParseTree::Pair(car, cdr) => write_pair(f, car, cdr),
 					LispParseTree::String(s) => write!(f, "{s:?}"),
 					LispParseTree::Quote(inner) => write!(f, "'{inner}"),
-					LispParseTree::Array(arr) => write_array(f, arr, |f, elem| write_elem(f, elem)),
+					LispParseTree::Array(arr) => write_array(f, arr, write_elem),
 					LispParseTree::Lambda {
 						params,
 						ret_ty,
