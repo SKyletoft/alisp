@@ -69,6 +69,9 @@ pub fn eval<'a>(
 					type_guard(&ret_ty, &Some(result.get(env).type_of()))?;
 					result
 				}
+				LispObject::Macro { params, body } => {
+					todo!()
+				}
 				LispObject::BuiltinDyadic(f) => {
 					let l_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
 					let l_evalled = eval(l_ref, env)?;

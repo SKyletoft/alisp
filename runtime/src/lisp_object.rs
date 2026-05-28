@@ -25,6 +25,10 @@ mod parse_tree {
 			body: Vec<LispParseTree>,
 		},
 		Quote(Box<LispParseTree>),
+		Macro {
+			params: SmallVec<[SmallString; 1]>,
+			body: Vec<LispParseTree>,
+		},
 	}
 
 	impl From<bool> for LispParseTree {
@@ -99,6 +103,7 @@ mod parse_tree {
 						}
 						write!(f, ")")
 					}
+					LispParseTree::Macro { .. } => todo!(),
 				}
 			}
 
@@ -192,6 +197,7 @@ mod parse_tree {
 				LispParseTree::String(_) => LispType::String,
 				LispParseTree::Array(..) => LispType::Array,
 				LispParseTree::Quote(_) => LispType::Code,
+				LispParseTree::Macro { .. } => LispType::Macro,
 			};
 			Some(res)
 		}
@@ -236,6 +242,8 @@ mod parse_tree {
 		String,
 		#[display("code")]
 		Code,
+		#[display("macro")]
+		Macro,
 	}
 
 	impl From<String> for LispType {
@@ -347,6 +355,7 @@ mod runtime_object {
 					let inner = Self::from_parse_object(*inner, env);
 					env.create_object(LispObject::Quote(inner))
 				}
+				LispParseTree::Macro { .. } => todo!(),
 			}
 		}
 	}
@@ -375,6 +384,10 @@ mod runtime_object {
 			ret_ty: Option<LispType>,
 			body: Vec<ObjectReference<'a, N>>,
 		},
+		Macro {
+			params: SmallVec<[SmallString; 1]>,
+			body: Vec<ObjectReference<'a, N>>,
+		},
 		BuiltinDyadic(BuiltinDyadicFn<'a, N>),
 		BuiltinMonadic(BuiltinMonadicFn<'a, N>),
 		Quote(ObjectReference<'a, N>),
@@ -398,6 +411,7 @@ mod runtime_object {
 				LispObject::Lambda { .. }
 				| LispObject::BuiltinDyadic(_)
 				| LispObject::BuiltinMonadic(_) => LispType::Function,
+				LispObject::Macro { .. } => LispType::Macro,
 				LispObject::Quote(_) => LispType::Code,
 			}
 		}
@@ -446,6 +460,7 @@ mod runtime_object {
 				write!(f, "'")?;
 				write_lisp_elem(f, env.get(*inner), env)
 			}
+			LispObject::Macro { .. } => todo!(),
 		}
 	}
 
@@ -517,6 +532,7 @@ mod runtime_object {
 					f.debug_struct("Builtin").finish()
 				}
 				LispObject::Quote(inner) => f.debug_tuple("Quote").field(inner).finish(),
+				LispObject::Macro { .. } => todo!(),
 			}
 		}
 	}
@@ -918,6 +934,7 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 				.collect();
 			LispParseTree::Array(arr.into_boxed_slice())
 		}
+		LispObject::Macro { .. } => todo!(),
 	}
 }
 
