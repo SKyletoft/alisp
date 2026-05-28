@@ -235,8 +235,8 @@ fn fib() {
 		}
 	}
 	let code = r#"
-(defn fib [(i i32)]
-      (cond ((<= i 1) 1)
+(defun fib [(i i32)]
+       (cond ((<= i 1) 1)
 	    (t (+ (fib (- i 1))
 		  (fib (- i 2))))))
 (fib 3)
