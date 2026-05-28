@@ -17,6 +17,8 @@ pub enum RuntimeError {
 	DivisionByZero,
 	#[display("Assignment to non-identifier")]
 	AssignmentToNonVariable,
+	#[display("Invalid lambda construction: {msg}")]
+	BrokenLambda { msg: &'static str },
 }
 
 fn type_guard(expected: &Option<LispType>, actual: &Option<LispType>) -> Result<(), RuntimeError> {
