@@ -120,7 +120,7 @@ fn eval_lambda<'a>(
 			msg: "lambda must have an argument array",
 		});
 	};
-	let args = args
+	let params = args
 		.iter()
 		.map(|arg_ref| match arg_ref.get(env) {
 			LispObject::Atom(name) => Ok((name.clone(), None)),
@@ -163,7 +163,7 @@ fn eval_lambda<'a>(
 		}
 	};
 	Ok(env.create_object(LispObject::Lambda {
-		params: args,
+		params,
 		ret_ty,
 		body,
 	}))
