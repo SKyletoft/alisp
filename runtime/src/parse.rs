@@ -260,13 +260,32 @@ mod test {
 
 	use crate::lisp_object::LispParseTree;
 
+	fn atom(s: &str) -> LispParseTree {
+		LispParseTree::Atom(s.into())
+	}
+
+	fn quote(l: LispParseTree) -> LispParseTree {
+		LispParseTree::Quote(Box::new(l))
+	}
+
+	fn list<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
+		ls.into_iter().collect::<Vec<_>>().into()
+	}
+
+	fn array<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
+		LispParseTree::Array(Box::new(ls))
+	}
+
+	#[allow(non_upper_case_globals)]
+	const int: fn(i32) -> LispParseTree = LispParseTree::Integer;
+
+	#[allow(non_upper_case_globals)]
+	const float: fn(f64) -> LispParseTree = LispParseTree::Float;
+
 	#[test]
 	fn neg_numbers() {
 		let code = "(-5 -2.44)";
-		let expected = LispParseTree::from(vec![
-			LispParseTree::Integer(-5),
-			LispParseTree::Float(-2.44),
-		]);
+		let expected = list([int(-5), float(-2.44)]);
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
 	}
@@ -292,7 +311,7 @@ mod test {
 	#[test]
 	fn int_list() {
 		let code = "(1 2 3)";
-		let expected = LispParseTree::from(vec![1, 2, 3]);
+		let expected = list([int(1), int(2), int(3)]);
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
 	}
@@ -300,7 +319,7 @@ mod test {
 	#[test]
 	fn quoted_int_list() {
 		let code = "'(1 2 3)";
-		let expected = LispParseTree::Quote(Box::new(LispParseTree::from(vec![1, 2, 3])));
+		let expected = quote(list([int(1), int(2), int(3)]));
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
 	}
@@ -308,14 +327,7 @@ mod test {
 	#[test]
 	fn int_array() {
 		let code = "[1 2 3]";
-		let expected = LispParseTree::Array(
-			vec![
-				LispParseTree::Integer(1),
-				LispParseTree::Integer(2),
-				LispParseTree::Integer(3),
-			]
-			.into_boxed_slice(),
-		);
+		let expected = array([int(1), int(2), int(3)]);
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
 	}
@@ -323,14 +335,7 @@ mod test {
 	#[test]
 	fn quoted_int_array() {
 		let code = "'[1 2 3]";
-		let expected = LispParseTree::Quote(Box::new(LispParseTree::Array(
-			vec![
-				LispParseTree::Integer(1),
-				LispParseTree::Integer(2),
-				LispParseTree::Integer(3),
-			]
-			.into_boxed_slice(),
-		)));
+		let expected = quote(array([int(1), int(2), int(3)]));
 		let result = super::parse(code);
 		assert_eq!(result, Ok(expected));
 	}
@@ -343,34 +348,26 @@ mod test {
 	}
 
 	#[test]
-	fn float() {
+	fn floats() {
 		let code = "123.456";
 		let result = dbg!(super::parse(code));
 		// Parse the string instead of hardcoding the float to make sure we use the same
 		// stdlib float parser and not some custom one from rustc
-		let expected = LispParseTree::Float(code.parse().unwrap());
+		let expected = float(code.parse().unwrap());
 		assert_eq!(result, Ok(expected));
 	}
 
 	#[test]
 	fn lambda_no_args() {
 		let result = super::parse("(lambda [] body)").unwrap();
-		assert_eq!(
-			result,
-			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([])),
-				LispParseTree::from("body")
-			]
-			.into()
-		);
+		assert_eq!(result, list([atom("lambda"), array([]), atom("body")]));
 		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
 				params: smallvec![],
 				ret_ty: None,
-				body: vec![LispParseTree::Atom("body".into())].into(),
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -380,31 +377,24 @@ mod test {
 		let result = super::parse("(set 'f (lambda [] body))").unwrap();
 		assert_eq!(
 			result,
-			vec![
-				LispParseTree::from("set"),
-				LispParseTree::Quote(LispParseTree::Atom("f".into()).into()),
-				vec![
-					LispParseTree::from("lambda"),
-					LispParseTree::Array(Box::new([])),
-					LispParseTree::from("body")
-				]
-				.into()
-			]
-			.into()
+			list([
+				atom("set"),
+				quote(atom("f")),
+				list([atom("lambda"), array([]), atom("body")])
+			])
 		);
 		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
 		assert_eq!(
 			with_lambdas,
-			vec![
-				LispParseTree::from("set"),
-				LispParseTree::Quote(LispParseTree::Atom("f".into()).into()),
+			list([
+				atom("set"),
+				quote(atom("f")),
 				LispParseTree::Lambda {
 					params: smallvec![],
 					ret_ty: None,
-					body: vec![LispParseTree::Atom("body".into())].into(),
+					body: vec![atom("body")],
 				}
-			]
-			.into()
+			])
 		);
 	}
 
@@ -413,12 +403,7 @@ mod test {
 		let result = super::parse("(lambda [x] body)").unwrap();
 		assert_eq!(
 			result,
-			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([LispParseTree::from("x")])),
-				LispParseTree::from("body")
-			]
-			.into()
+			list([atom("lambda"), array([atom("x")]), atom("body")])
 		);
 		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
 		assert_eq!(
@@ -426,7 +411,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None)],
 				ret_ty: None,
-				body: vec![LispParseTree::Atom("body".into())],
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -439,14 +424,11 @@ mod test {
 		assert_eq!(
 			result,
 			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([
-					vec![LispParseTree::from("x"), LispParseTree::from("i32")].into(),
-					LispParseTree::from("y")
-				])),
-				LispParseTree::from("->"),
+				atom("lambda"),
+				LispParseTree::Array(Box::new([vec![atom("x"), atom("i32")].into(), atom("y")])),
+				atom("->"),
 				LispParseTree::from("bool"),
-				LispParseTree::from("body")
+				atom("body")
 			]
 			.into()
 		);
@@ -456,7 +438,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), Some(LispType::Integer)), ("y".into(), None),],
 				ret_ty: Some(LispType::Named("bool".into())),
-				body: vec![LispParseTree::Atom("body".into())],
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -469,15 +451,11 @@ mod test {
 		assert_eq!(
 			result,
 			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([vec![
-					LispParseTree::from("x"),
-					LispParseTree::from("i32")
-				]
-				.into()])),
-				LispParseTree::from("->"),
-				LispParseTree::from("i32"),
-				LispParseTree::from("body")
+				atom("lambda"),
+				array([list([atom("x"), atom("i32")])]),
+				atom("->"),
+				atom("i32"),
+				atom("body")
 			]
 			.into()
 		);
@@ -487,7 +465,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), Some(LispType::Integer))],
 				ret_ty: Some(LispType::Integer),
-				body: vec![LispParseTree::Atom("body".into())],
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -499,15 +477,11 @@ mod test {
 		let result = super::parse("(lambda [x (y i32)] body)").unwrap();
 		assert_eq!(
 			result,
-			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([
-					LispParseTree::from("x"),
-					vec![LispParseTree::from("y"), LispParseTree::from("i32")].into()
-				])),
-				LispParseTree::from("body")
-			]
-			.into()
+			list([
+				atom("lambda"),
+				array([atom("x"), list([atom("y"), atom("i32")])]),
+				atom("body")
+			])
 		);
 		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
 		assert_eq!(
@@ -515,7 +489,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
 				ret_ty: None,
-				body: vec![LispParseTree::Atom("body".into())],
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -528,14 +502,11 @@ mod test {
 		assert_eq!(
 			result,
 			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([
-					LispParseTree::from("x"),
-					vec![LispParseTree::from("y"), LispParseTree::from("i32")].into()
-				])),
-				LispParseTree::from("->"),
-				LispParseTree::from("i32"),
-				LispParseTree::from("body")
+				atom("lambda"),
+				array([atom("x"), list([atom("y"), atom("i32")])]),
+				atom("->"),
+				atom("i32"),
+				atom("body")
 			]
 			.into()
 		);
@@ -545,7 +516,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
 				ret_ty: Some(LispType::Integer),
-				body: vec![LispParseTree::Atom("body".into())],
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -558,11 +529,11 @@ mod test {
 		assert_eq!(
 			result,
 			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([LispParseTree::from("x")])),
-				LispParseTree::from("->"),
-				LispParseTree::from("i32"),
-				LispParseTree::from("body")
+				atom("lambda"),
+				array([atom("x")]),
+				atom("->"),
+				atom("i32"),
+				atom("body")
 			]
 			.into()
 		);
@@ -572,7 +543,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None)],
 				ret_ty: Some(LispType::Integer),
-				body: vec![LispParseTree::Atom("body".into())],
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -585,13 +556,9 @@ mod test {
 		assert_eq!(
 			result,
 			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([vec![
-					LispParseTree::from("x"),
-					LispParseTree::from("i32")
-				]
-				.into()])),
-				LispParseTree::from("body")
+				atom("lambda"),
+				array([list([atom("x"), atom("i32")])]),
+				atom("body")
 			]
 			.into()
 		);
@@ -601,7 +568,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), Some(LispType::Integer))],
 				ret_ty: None,
-				body: vec![LispParseTree::Atom("body".into())],
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -611,15 +578,7 @@ mod test {
 		let result = super::parse("(lambda [x y] body)").unwrap();
 		assert_eq!(
 			result,
-			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([
-					LispParseTree::from("x"),
-					LispParseTree::from("y")
-				])),
-				LispParseTree::from("body")
-			]
-			.into()
+			list([atom("lambda"), array([atom("x"), atom("y")]), atom("body")])
 		);
 		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
 		assert_eq!(
@@ -627,7 +586,7 @@ mod test {
 			LispParseTree::Lambda {
 				params: smallvec![("x".into(), None), ("y".into(), None)],
 				ret_ty: None,
-				body: vec![LispParseTree::Atom("body".into())],
+				body: vec![atom("body")],
 			}
 		);
 	}
@@ -637,18 +596,12 @@ mod test {
 		let result = super::parse("(lambda [x] (println x) (+ x 1))").unwrap();
 		assert_eq!(
 			result,
-			vec![
-				LispParseTree::from("lambda"),
-				LispParseTree::Array(Box::new([LispParseTree::from("x")])),
-				vec![LispParseTree::from("println"), LispParseTree::from("x")].into(),
-				vec![
-					LispParseTree::from("+"),
-					LispParseTree::from("x"),
-					LispParseTree::Integer(1)
-				]
-				.into()
-			]
-			.into()
+			list([
+				atom("lambda"),
+				array([atom("x")]),
+				list([atom("println"), atom("x")]),
+				list([atom("+"), atom("x"), int(1)])
+			])
 		);
 		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
 		assert_eq!(
@@ -657,17 +610,8 @@ mod test {
 				params: smallvec![("x".into(), None)],
 				ret_ty: None,
 				body: vec![
-					vec![
-						LispParseTree::Atom("println".into()),
-						LispParseTree::Atom("x".into())
-					]
-					.into(),
-					vec![
-						LispParseTree::Atom("+".into()),
-						LispParseTree::Atom("x".into()),
-						LispParseTree::Integer(1)
-					]
-					.into()
+					list([atom("println"), atom("x")]),
+					list([atom("+"), atom("x"), int(1)])
 				],
 			}
 		);
@@ -738,21 +682,13 @@ mod test {
 	#[test]
 	fn macro_no_args() {
 		let result = super::parse("(macro [] body)").unwrap();
-		assert_eq!(
-			result,
-			vec![
-				LispParseTree::from("macro"),
-				LispParseTree::Array(Box::new([])),
-				LispParseTree::from("body")
-			]
-			.into()
-		);
+		assert_eq!(result, list([atom("macro"), array([]), atom("body")]));
 		let with_lambdas = super::pre_evaluate_lambdas(result).unwrap();
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Macro {
 				params: smallvec![],
-				body: vec![LispParseTree::Atom("body".into())].into(),
+				body: vec![atom("body")],
 			}
 		);
 	}
