@@ -10,9 +10,9 @@ use smallvec::SmallVec;
 
 use crate::lisp_object::{LispParseTree, LispType, SmallString};
 
-pub fn pre_evaluate_lambdas(mut list: LispParseTree) -> Result<LispParseTree, &'static str> {
-	match list.next() {
-		Some(LispParseTree::Atom("lambda" | "λ")) => {
+pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'static str> {
+	match list {
+		LispParseTree::Pair(LispParseTree::Atom("lambda" | "λ"), mut list) => {
 			let Some(LispParseTree::Array(args)) = list.next() else {
 				return Err("lambda must have an argument list");
 			};
@@ -33,7 +33,7 @@ pub fn pre_evaluate_lambdas(mut list: LispParseTree) -> Result<LispParseTree, &'
 				}
 				body => {
 					let mut body_vec = vec![body];
-					body_vec.extend(list);
+					body_vec.extend(*list);
 					(None, body_vec)
 				}
 			};
@@ -44,8 +44,47 @@ pub fn pre_evaluate_lambdas(mut list: LispParseTree) -> Result<LispParseTree, &'
 				body,
 			})
 		}
-		Some(LispParseTree::Atom("macro")) => todo!(),
-		_ => return Err("lambda list was empty?"),
+		LispParseTree::Pair(LispParseTree::Atom("macro"), _) => todo!(),
+		LispParseTree::Pair(head, tail) => {
+			let head = pre_evaluate_lambdas(*head)?;
+			let tail = pre_evaluate_lambdas(*tail)?;
+			Ok(LispParseTree::Pair(Box::new(head), Box::new(tail)))
+		}
+		LispParseTree::Array(lisp_parse_trees) => {
+			let res = lisp_parse_trees
+				.into_iter()
+				.map(pre_evaluate_lambdas)
+				.collect::<Result<Vec<_>, _>>()?
+				.into_boxed_slice();
+			Ok(LispParseTree::Array(res))
+		}
+		LispParseTree::Lambda {
+			params,
+			ret_ty,
+			body,
+		} => {
+			let body = body
+				.into_iter()
+				.map(pre_evaluate_lambdas)
+				.collect::<Result<Vec<_>, _>>()?;
+			Ok(LispParseTree::Lambda {
+				params,
+				ret_ty,
+				body,
+			})
+		}
+		LispParseTree::Quote(inner) => {
+			let inner = pre_evaluate_lambdas(*inner)?;
+			Ok(LispParseTree::Quote(Box::new(inner)))
+		}
+		LispParseTree::Macro { params, body } => {
+			let body = body
+				.into_iter()
+				.map(pre_evaluate_lambdas)
+				.collect::<Result<Vec<_>, _>>()?;
+			Ok(LispParseTree::Macro { params, body })
+		}
+		other => Ok(other),
 	}
 }
 
