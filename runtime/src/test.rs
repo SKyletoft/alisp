@@ -422,3 +422,43 @@ fn set_quote() {
 	let res = eval(code);
 	assert_eq!(res, expected);
 }
+
+#[test]
+fn inline_macro() {
+	let code = "((macro [x] ,x) 1)";
+	let expected = 1.into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}
+
+#[test]
+fn macro_from_var() {
+	let code = "(set 'm (macro [x] ,x)) (m 1)";
+	let expected = 1.into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}
+
+#[test]
+fn macro_plus_one() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) (m 1)";
+	let expected = 2.into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}
+
+#[test]
+fn macro_expands_in_quote() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) '(m 1)";
+	let expected = "(+ 1 1)".into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}
+
+#[test]
+fn macro_expands_in_quoted_list() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) '(1 (m 1) 3)";
+	let expected = "'(1 (+ 1 1) 3)".into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}
