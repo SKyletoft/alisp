@@ -29,12 +29,17 @@ pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'stat
 						return Err("lambda return type expected after ->");
 					};
 					let ty = parse_type(&type_name);
-					(Some(ty), list.into_iter().collect())
+					let body = list
+						.into_iter()
+						.map(pre_evaluate_lambdas)
+						.collect::<Result<Vec<_>, _>>()?;
+					(Some(ty), body)
 				}
 				body => {
-					let mut body_vec = vec![body];
-					body_vec.extend(*list);
-					(None, body_vec)
+					let body = std::iter::chain(std::iter::once(body), *list)
+						.map(pre_evaluate_lambdas)
+						.collect::<Result<Vec<_>, _>>()?;
+					(None, body)
 				}
 			};
 
