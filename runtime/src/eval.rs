@@ -44,6 +44,9 @@ pub fn eval<'a>(
 		LispObject::Pair(f, xs) if matches!(f.get(env), LispObject::Atom("lambda")) => {
 			eval_lambda(env, *xs)?
 		}
+		LispObject::Pair(f, xs) if matches!(f.get(env), LispObject::Atom("macro")) => {
+			eval_macro(env, *xs)?
+		}
 		LispObject::Pair(f, x) => {
 			let mut args_iter = *x;
 			let function = eval(*f, env)?.get(env).clone();
@@ -111,6 +114,43 @@ pub fn eval<'a>(
 	};
 
 	Ok(res)
+}
+
+fn eval_macro<'a>(
+	env: &mut Env<'a>,
+	mut xs: ObjectReference<'a>,
+) -> Result<ObjectReference<'a>, RuntimeError> {
+	let arr_ref = xs.next(env).ok_or(RuntimeError::BrokenMacro {
+		msg: "macro must have an argument array",
+	})?;
+	let LispObject::Array(args) = arr_ref.get(env) else {
+		return Err(RuntimeError::BrokenMacro {
+			msg: "macro must have an argument array",
+		});
+	};
+	let params = args
+		.iter()
+		.map(|arg_ref| match arg_ref.get(env) {
+			LispObject::Atom(name) => Ok(name.clone()),
+			_ => Err(RuntimeError::BrokenMacro {
+				msg: "Non-argument in argument position",
+			}),
+		})
+		.collect::<Result<SmallVec<_>, _>>()?;
+	let Some(body_first) = xs.next(env) else {
+		return Err(RuntimeError::BrokenMacro {
+			msg: "macro must have a body",
+		});
+	};
+	let body = match body_first.get(env) {
+		LispObject::Atom("->" | "→") => {
+			return Err(RuntimeError::BrokenMacro {
+				msg: "macro should not have a return type",
+			});
+		}
+		_ => [body_first].into_iter().chain(xs.iter(env)).collect(),
+	};
+	Ok(env.create_object(LispObject::Macro { params, body }))
 }
 
 fn eval_lambda<'a>(
