@@ -10,7 +10,7 @@ mod parse_tree {
 
 	use super::SmallString;
 
-	#[derive(Debug, PartialEq, Clone, derive_more::From)]
+	#[derive(Debug, PartialEq, Clone, derive_more::From, variantly::Variantly)]
 	pub enum LispParseTree {
 		Atom(SmallString),
 		Integer(i32 /* TODO: Bigints */),
