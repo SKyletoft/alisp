@@ -1,3 +1,5 @@
+use smallvec::SmallVec;
+
 use crate::lisp_object::{Env, LispObject, LispType, ObjectReference};
 
 #[derive(Debug, derive_more::Display, derive_more::Error)]
@@ -37,6 +39,9 @@ pub fn eval<'a>(
 ) -> Result<ObjectReference<'a>, RuntimeError> {
 	let obj = env.get(expr);
 	let res = match obj {
+		LispObject::Pair(f, xs) if matches!(f.get(env), LispObject::Atom("lambda")) => {
+			eval_lambda(env, *xs)?
+		}
 		LispObject::Pair(f, x) => {
 			let mut args_iter = *x;
 			let function = eval(*f, env)?.get(env).clone();
@@ -101,4 +106,67 @@ pub fn eval<'a>(
 	};
 
 	Ok(res)
+}
+
+fn eval_lambda<'a>(
+	env: &mut Env<'a>,
+	mut xs: ObjectReference<'a>,
+) -> Result<ObjectReference<'a>, RuntimeError> {
+	let arr_ref = xs.next(env).ok_or(	RuntimeError::BrokenLambda {
+		msg: "lambda must have an argument array",
+	})?;
+	let LispObject::Array(args) = arr_ref.get(env) else {
+		return Err(RuntimeError::BrokenLambda {
+			msg: "lambda must have an argument array",
+		});
+	};
+	let args = args
+		.iter()
+		.map(|arg_ref| match arg_ref.get(env) {
+			LispObject::Atom(name) => Ok((name.clone(), None)),
+			LispObject::Pair(name_ref, rest_ref)
+				if let LispObject::Atom(name) = name_ref.get(env)
+					&& let LispObject::Pair(ty_ref, nil_ref) = rest_ref.get(env)
+					&& let LispObject::Atom(ty_str) = ty_ref.get(env)
+					&& let LispObject::Atom("nil") = nil_ref.get(env) =>
+			{
+				let ty = match ty_str.as_str() {
+					"i32" => LispType::Integer,
+					"f64" => LispType::Float,
+					id => LispType::Named(id.into()),
+				};
+				Ok((name.clone(), Some(ty)))
+			}
+			_ => Err(RuntimeError::BrokenLambda {
+				msg: "Non-argument in argument position",
+			}),
+		})
+		.collect::<Result<SmallVec<_>, _>>()?;
+	let Some(body_first) = xs.next(env) else {
+		return Err(RuntimeError::BrokenLambda { msg: "lambda must have a body" });
+	};
+	let (ret_ty, body) = match body_first.get(env) {
+		LispObject::Atom("->" | "→")
+			if let Some(type_name_ref) = xs.next(env)
+				&& let LispObject::Atom(type_name) = type_name_ref.get(env) =>
+		{
+			let ty = crate::parse::parse_type(type_name);
+			let body = xs.iter(env).collect();
+			(Some(ty), body)
+		}
+		LispObject::Atom("->" | "→") => {
+			return Err(RuntimeError::BrokenLambda {
+				msg: "lambda return type expected after ->",
+			});
+		}
+		_ => {
+			let body = [body_first].into_iter().chain(xs.iter(env)).collect();
+			(None, body)
+		}
+	};
+	Ok(env.create_object(LispObject::Lambda {
+		params: args,
+		ret_ty,
+		body,
+	}))
 }
