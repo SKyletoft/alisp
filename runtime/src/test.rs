@@ -448,17 +448,33 @@ fn macro_plus_one() {
 }
 
 #[test]
-fn macro_expands_in_quote() {
-	let code = "(set 'm (macro [x] (+ 1 ,x))) '(m 1)";
+fn macro_expands_in_quasiquote() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) `(m 1)";
 	let expected = "(+ 1 1)".into();
 	let res = eval(code);
 	assert_eq!(res, expected);
 }
 
 #[test]
-fn macro_expands_in_quoted_list() {
+fn macro_expands_in_quasiquoted_list() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) `(1 (m 1) 3)";
+	let expected = "(1 (+ 1 1) 3)".into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}
+
+#[test]
+fn macro_does_not_expand_in_quoted_list() {
 	let code = "(set 'm (macro [x] (+ 1 ,x))) '(1 (m 1) 3)";
-	let expected = "'(1 (+ 1 1) 3)".into();
+	let expected = "'(1 (m 1) 3)".into();
+	let res = eval(code);
+	assert_eq!(res, expected);
+}
+
+#[test]
+fn macro_does_not_expand_in_quote() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) '(m 1)";
+	let expected = "'(m 1)".into();
 	let res = eval(code);
 	assert_eq!(res, expected);
 }
