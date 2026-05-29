@@ -3,23 +3,24 @@ use quickcheck_macros::quickcheck;
 use smallvec::smallvec;
 
 use crate::{
-	eval,
+	eval::{self, RuntimeError},
 	lisp_object::{Env, LispParseTree, ObjectReference},
 	parse,
 };
 
-pub fn eval_in_env<'a>(code: &str, env: &mut Env<'a>) -> ObjectReference<'a> {
+pub fn eval_in_env<'a>(code: &str, env: &mut Env<'a>) -> Result<ObjectReference<'a>, RuntimeError> {
 	let parsed = parse::parse_many(code).unwrap();
-	parsed.into_iter().fold(env.nil(), |_, node| {
+	parsed.into_iter().try_fold(env.nil(), |_, node| {
 		let obj = ObjectReference::from_parse_object(node, env);
-		eval::eval(obj, env).unwrap()
+		eval::eval(obj, env)
 	})
 }
 
-pub fn eval(code: &str) -> LispParseTree {
+pub fn eval(code: &str) -> Result<LispParseTree, RuntimeError> {
 	let mut env = Env::wait_for_new();
-	let res = eval_in_env(code, &mut env);
-	crate::lisp_object::lisp_object_to_parse_tree(env.get(res), &env)
+	let res = eval_in_env(code, &mut env)?;
+	let printable = crate::lisp_object::lisp_object_to_parse_tree(env.get(res), &env);
+	Ok(printable)
 }
 
 #[quickcheck]
@@ -27,7 +28,7 @@ fn add(a: i16, b: i16) {
 	let code = format!("(+ {a} {b})");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer((a as i32) + (b as i32));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -35,7 +36,7 @@ fn sub(a: i16, b: i16) {
 	let code = format!("(- {a} {b})");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer((a as i32) - (b as i32));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -43,7 +44,7 @@ fn mul(a: i16, b: i16) {
 	let code = format!("(* {a} {b})");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer((a as i32) * (b as i32));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -54,7 +55,7 @@ fn div(a: i16, b: i16) -> TestResult {
 	let code = format!("(/ {a} {b})");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer((a as i32) / (b as i32));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 	TestResult::passed()
 }
 
@@ -66,7 +67,7 @@ fn rem(a: i16, b: i16) -> TestResult {
 	let code = format!("(% {a} {b})");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer((a as i32) % (b as i32));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 	TestResult::passed()
 }
 
@@ -75,7 +76,7 @@ fn eq(a: i16, b: i16) {
 	let code = format!("(= {a} {b})");
 	let result = eval(&code);
 	let expected = ((a as i32) == (b as i32)).into();
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -83,7 +84,7 @@ fn lt(a: i16, b: i16) {
 	let code = format!("(< {a} {b})");
 	let result = eval(&code);
 	let expected = ((a as i32) < (b as i32)).into();
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -91,7 +92,7 @@ fn gt(a: i16, b: i16) {
 	let code = format!("(> {a} {b})");
 	let result = eval(&code);
 	let expected = ((a as i32) > (b as i32)).into();
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -99,7 +100,7 @@ fn lte(a: i16, b: i16) {
 	let code = format!("(<= {a} {b})");
 	let result = eval(&code);
 	let expected = ((a as i32) <= (b as i32)).into();
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -107,7 +108,7 @@ fn gte(a: i16, b: i16) {
 	let code = format!("(>= {a} {b})");
 	let result = eval(&code);
 	let expected = ((a as i32) >= (b as i32)).into();
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -115,7 +116,7 @@ fn add_mul(a: i16, b: i16, c: i16) {
 	let code = format!("(* (+ {a} {b}) {c})");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer(((a as i32) + (b as i32)) * (c as i32));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -123,7 +124,7 @@ fn add_sub_combined(a: i16, b: i16, c: i16) {
 	let code = format!("(+ (- {a} {b}) {c})");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer(((a as i32) - (b as i32)) + (c as i32));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -131,7 +132,7 @@ fn mul_sub_combined(a: i16, b: i16, c: i16) {
 	let code = format!("(- (* {a} {b}) {c})");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer(((a as i32) * (b as i32)) - (c as i32));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -142,7 +143,7 @@ fn div_mul_combined(a: i16, b: i16, c: i16, d: i16) -> TestResult {
 	let code = format!("(/ (* {a} {b}) (- {c} {d}))");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer(((a as i32) * (b as i32)) / ((c as i32) - (d as i32)));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 	TestResult::passed()
 }
 
@@ -151,7 +152,7 @@ fn eq_combined(a: i16, b: i16, c: i16, d: i16) {
 	let code = format!("(= (+ {a} {b}) (- {c} {d}))");
 	let result = eval(&code);
 	let expected = (((a as i32) + (b as i32)) == ((c as i32) - (d as i32))).into();
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -159,7 +160,7 @@ fn lt_combined(a: i16, b: i16, c: i16, d: i16) {
 	let code = format!("(< (+ {a} {b}) (* {c} {d}))");
 	let result = eval(&code);
 	let expected = (((a as i32) + (b as i32)) < ((c as i32) * (d as i32))).into();
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[quickcheck]
@@ -170,7 +171,7 @@ fn modulo_combined(a: i16, b: i16, c: i16, d: i16) -> TestResult {
 	let code = format!("(% (+ {a} {b}) (- {c} {d}))");
 	let result = eval(&code);
 	let expected = LispParseTree::Integer(((a as i32) + (b as i32)) % ((c as i32) - (d as i32)));
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 	TestResult::passed()
 }
 
@@ -181,8 +182,10 @@ fn all_arithmetic(a: i16, b: i16, c: i16, d: i16, e: i16) -> TestResult {
 	}
 	let code = format!("(+ (- (* {a} {b}) (/ {c} {d})) {e})");
 	let result = eval(&code);
-	let expected = LispParseTree::Integer((((a as i32) * (b as i32)) - ((c as i32) / (d as i32))) + (e as i32));
-	assert_eq!(result, expected);
+	let expected = LispParseTree::Integer(
+		(((a as i32) * (b as i32)) - ((c as i32) / (d as i32))) + (e as i32),
+	);
+	assert_eq!(result, Ok(expected));
 	TestResult::passed()
 }
 
@@ -191,7 +194,7 @@ fn print_returns_nil() {
 	let code = "(print 42)";
 	let expected = "nil".into();
 	let result = eval(code);
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[test]
@@ -199,7 +202,7 @@ fn println_returns_nil() {
 	let code = "(println 42)";
 	let expected = "nil".into();
 	let result = eval(code);
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[test]
@@ -207,7 +210,7 @@ fn print_combined() {
 	let code = "(print (+ 1 2))";
 	let expected = "nil".into();
 	let result = eval(code);
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[test]
@@ -215,7 +218,7 @@ fn immediately_invoked_lambda() {
 	let code = "((lambda [x] (* x x)) 2)";
 	let expected = LispParseTree::Integer(4);
 	let result = eval(code);
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[test]
@@ -223,7 +226,7 @@ fn defun() {
 	let code = "(defun square [x] (* x x)) (square 2)";
 	let expected = LispParseTree::Integer(4);
 	let result = eval(code);
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 #[test]
@@ -243,7 +246,7 @@ fn fib() {
 "#;
 	let expected = LispParseTree::Integer(rust_fib(3));
 	let result = eval(code);
-	assert_eq!(result, expected);
+	assert_eq!(result, Ok(expected));
 }
 
 fn check_list(list: &LispParseTree, expected: &[i32]) {
@@ -259,7 +262,12 @@ fn check_list(list: &LispParseTree, expected: &[i32]) {
 
 #[test]
 fn vec_to_list() {
-	let list: LispParseTree = vec![LispParseTree::Integer(1), LispParseTree::Integer(2), LispParseTree::Integer(3)].into();
+	let list: LispParseTree = vec![
+		LispParseTree::Integer(1),
+		LispParseTree::Integer(2),
+		LispParseTree::Integer(3),
+	]
+	.into();
 	check_list(&list, &[1, 2, 3]);
 }
 
@@ -270,7 +278,11 @@ fn vec_deque_to_list() {
 	v.push_back(1);
 	v.push_back(2);
 	v.push_back(3);
-	let list: LispParseTree = v.into_iter().map(LispParseTree::Integer).collect::<Vec<_>>().into();
+	let list: LispParseTree = v
+		.into_iter()
+		.map(LispParseTree::Integer)
+		.collect::<Vec<_>>()
+		.into();
 	check_list(&list, &[1, 2, 3]);
 }
 
@@ -304,7 +316,12 @@ fn display_float() {
 
 #[test]
 fn display_proper_list() {
-	let list: LispParseTree = vec![LispParseTree::Integer(1), LispParseTree::Integer(2), LispParseTree::Integer(3)].into();
+	let list: LispParseTree = vec![
+		LispParseTree::Integer(1),
+		LispParseTree::Integer(2),
+		LispParseTree::Integer(3),
+	]
+	.into();
 	assert_eq!(format!("{list}"), "(1 2 3)");
 }
 
@@ -317,7 +334,11 @@ fn display_improper_list() {
 
 #[test]
 fn display_nested_list() {
-	let list: LispParseTree = vec![LispParseTree::from(vec![LispParseTree::Integer(1), LispParseTree::Integer(2)]), LispParseTree::Integer(3)].into();
+	let list: LispParseTree = vec![
+		LispParseTree::from(vec![LispParseTree::Integer(1), LispParseTree::Integer(2)]),
+		LispParseTree::Integer(3),
+	]
+	.into();
 	assert_eq!(format!("{list}"), "((1 2) 3)");
 }
 
@@ -412,7 +433,7 @@ fn set_and_get() {
 	let code = "(set 'x 5) x";
 	let expected = LispParseTree::Integer(5);
 	let res = eval(code);
-	assert_eq!(res, expected);
+	assert_eq!(res, Ok(expected));
 }
 
 #[test]
@@ -420,7 +441,7 @@ fn set_quote() {
 	let code = "(set 'id 'x) (set id 5) x";
 	let expected = LispParseTree::Integer(5);
 	let res = eval(code);
-	assert_eq!(res, expected);
+	assert_eq!(res, Ok(expected));
 }
 
 #[test]
@@ -428,7 +449,7 @@ fn inline_macro() {
 	let code = "((macro [x] ,x) 1)";
 	let expected = LispParseTree::Integer(1);
 	let res = eval(code);
-	assert_eq!(res, expected);
+	assert_eq!(res, Ok(expected));
 }
 
 #[test]
@@ -436,7 +457,7 @@ fn macro_from_var() {
 	let code = "(set 'm (macro [x] ,x)) (m 1)";
 	let expected = LispParseTree::Integer(1);
 	let res = eval(code);
-	assert_eq!(res, expected);
+	assert_eq!(res, Ok(expected));
 }
 
 #[test]
@@ -444,7 +465,7 @@ fn macro_plus_one() {
 	let code = "(set 'm (macro [x] (+ 1 ,x))) (m 1)";
 	let expected = LispParseTree::Integer(2);
 	let res = eval(code);
-	assert_eq!(res, expected);
+	assert_eq!(res, Ok(expected));
 }
 
 #[test]
@@ -452,7 +473,7 @@ fn macro_expands_in_quasiquote() {
 	let code = "(set 'm (macro [x] (+ 1 ,x))) `(m 1)";
 	let expected = "(+ 1 1)".into();
 	let res = eval(code);
-	assert_eq!(res, expected);
+	assert_eq!(res, Ok(expected));
 }
 
 #[test]
@@ -460,7 +481,7 @@ fn macro_expands_in_quasiquoted_list() {
 	let code = "(set 'm (macro [x] (+ 1 ,x))) `(1 (m 1) 3)";
 	let expected = "(1 (+ 1 1) 3)".into();
 	let res = eval(code);
-	assert_eq!(res, expected);
+	assert_eq!(res, Ok(expected));
 }
 
 #[test]
@@ -468,13 +489,21 @@ fn macro_does_not_expand_in_quoted_list() {
 	let code = "(set 'm (macro [x] (+ 1 ,x))) '(1 (m 1) 3)";
 	let expected = "'(1 (m 1) 3)".into();
 	let res = eval(code);
-	assert_eq!(res, expected);
+	assert_eq!(res, Ok(expected));
 }
 
 #[test]
 fn macro_does_not_expand_in_quote() {
 	let code = "(set 'm (macro [x] (+ 1 ,x))) '(m 1)";
 	let expected = "'(m 1)".into();
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn var_goes_out_of_scope() {
+	let code = "(set 'f (lambda [x] (set 'y 1) x)) x";
+	let expected = Err(RuntimeError::UndefinedVariable);
 	let res = eval(code);
 	assert_eq!(res, expected);
 }
