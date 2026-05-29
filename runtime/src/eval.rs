@@ -102,13 +102,7 @@ pub fn eval<'a>(
 				}
 			}
 		}
-		LispObject::Atom(id) => env
-			.stack
-			.iter()
-			.rev()
-			.find(|(s, _)| id == s)
-			.map(|(_, val)| *val)
-			.ok_or(RuntimeError::UndefinedVariable)?,
+		LispObject::Atom(id) => env.get_stack_var(id)?,
 		_ => expr,
 	};
 
