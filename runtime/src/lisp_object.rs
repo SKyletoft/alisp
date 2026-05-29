@@ -3,7 +3,7 @@ pub use runtime_object::{Env, LispObject, LispObjectIterator, ObjectReference};
 
 pub type SmallString = smallstr::SmallString<[u8; 23]>;
 
-mod parse_tree {
+pub(crate) mod parse_tree {
 	use std::{collections::VecDeque, fmt};
 
 	use smallvec::SmallVec;
@@ -32,6 +32,32 @@ mod parse_tree {
 			body: Vec<LispParseTree>,
 		},
 	}
+
+	pub(crate) fn atom(s: &str) -> LispParseTree {
+		LispParseTree::Atom(s.into())
+	}
+
+	pub(crate) fn quote(l: LispParseTree) -> LispParseTree {
+		LispParseTree::Quote(Box::new(l))
+	}
+
+	pub(crate) fn quasiquote(l: LispParseTree) -> LispParseTree {
+		LispParseTree::Quasiquote(Box::new(l))
+	}
+
+	pub(crate) fn list<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
+		ls.into_iter().collect::<Vec<_>>().into()
+	}
+
+	pub(crate) fn array<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
+		LispParseTree::Array(Box::new(ls))
+	}
+
+	#[allow(non_upper_case_globals)]
+	pub(crate) const int: fn(i32) -> LispParseTree = LispParseTree::Integer;
+
+	#[allow(non_upper_case_globals)]
+	pub(crate) const float: fn(f64) -> LispParseTree = LispParseTree::Float;
 
 	impl From<bool> for LispParseTree {
 		fn from(value: bool) -> Self {

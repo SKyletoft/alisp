@@ -323,33 +323,10 @@ mod test {
 	use smallstr::SmallString;
 	use smallvec::smallvec;
 
-	use crate::lisp_object::LispParseTree;
-
-	fn atom(s: &str) -> LispParseTree {
-		LispParseTree::Atom(s.into())
-	}
-
-	fn quote(l: LispParseTree) -> LispParseTree {
-		LispParseTree::Quote(Box::new(l))
-	}
-
-	fn quasiquote(l: LispParseTree) -> LispParseTree {
-		LispParseTree::Quasiquote(Box::new(l))
-	}
-
-	fn list<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
-		ls.into_iter().collect::<Vec<_>>().into()
-	}
-
-	fn array<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
-		LispParseTree::Array(Box::new(ls))
-	}
-
-	#[allow(non_upper_case_globals)]
-	const int: fn(i32) -> LispParseTree = LispParseTree::Integer;
-
-	#[allow(non_upper_case_globals)]
-	const float: fn(f64) -> LispParseTree = LispParseTree::Float;
+	use crate::lisp_object::{
+		LispParseTree,
+		parse_tree::{array, atom, float, int, list, quasiquote, quote},
+	};
 
 	#[test]
 	fn neg_numbers() {
