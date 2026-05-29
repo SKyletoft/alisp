@@ -1,6 +1,3 @@
-[submodule "crates/smallstr"]
-	path = crates/smallstr
-	url = https://github.com/SKyletoft/smallstr.git
 [submodule "smallstr"]
 	path = smallstr
 	url = https://github.com/SKyletoft/smallstr.git
