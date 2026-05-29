@@ -2,7 +2,7 @@ use smallvec::SmallVec;
 
 use crate::lisp_object::{Env, LispObject, LispType, ObjectReference};
 
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, PartialEq, derive_more::Display, derive_more::Error)]
 pub enum RuntimeError {
 	#[display("Undefined variable")]
 	UndefinedVariable,
