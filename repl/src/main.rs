@@ -5,7 +5,7 @@ use runtime::{
 };
 
 fn main() {
-	let code = "(print \"Hello World!\")";
+	let code = "(println \"Hello World!\")";
 	let mut env = Env::wait_for_new();
 	let parsed = parse::parse_many(code).unwrap();
 	let obj = parsed.into_iter().fold(env.nil(), |_, node| {
