@@ -57,12 +57,14 @@ pub fn eval<'a>(
 					body,
 				} => {
 					let ret_ty = ret_ty.clone();
+					let mut stack_frame = Vec::new();
 					for (param_name, param_type) in params.clone().into_iter() {
 						let arg = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
 						let evalled_arg = eval(arg, env)?;
 						type_guard(&param_type, &Some(evalled_arg.get(env).type_of()))?;
-						env.stack.push((param_name.clone(), evalled_arg));
+						stack_frame.push((param_name.clone(), evalled_arg));
 					}
+					env.stack.push(stack_frame);
 					if args_iter.get(env).next(env).is_some() {
 						return Err(RuntimeError::TooManyArguments);
 					}
@@ -72,6 +74,7 @@ pub fn eval<'a>(
 						.last()
 						.unwrap_or(Ok(expr))?;
 					type_guard(&ret_ty, &Some(result.get(env).type_of()))?;
+					env.stack.pop();
 					result
 				}
 				LispObject::Macro { params, body } => {

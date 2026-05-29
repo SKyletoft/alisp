@@ -592,7 +592,7 @@ mod runtime_object {
 		objects: HashMap<ObjectReference<'a, N>, LispObject<'a, N>>,
 		monotonic_object_count: usize,
 
-		pub(crate) stack: Vec<(SmallString, ObjectReference<'a, N>)>,
+		pub(crate) stack: Vec<Vec<(SmallString, ObjectReference<'a, N>)>>,
 	}
 
 	impl<'a, const N: usize> fmt::Debug for Env<'a, N> {
@@ -622,7 +622,7 @@ mod runtime_object {
 				let mut ret = Self {
 					objects: HashMap::new(),
 					monotonic_object_count: 0,
-					stack: Vec::new(),
+					stack: vec![Vec::new()],
 				};
 				// let t_ref = ret.create_object(LispObject::Atom("t".into()));
 				// ret.stack.push(("t".into(), t_ref));
@@ -834,7 +834,7 @@ mod runtime_object {
 			+ 'static,
 		) {
 			let fn_ref = self.create_object(LispObject::BuiltinDyadic(Rc::new(f)));
-			self.stack.push((name.into(), fn_ref));
+			self.stack.last_mut().unwrap().push((name.into(), fn_ref));
 		}
 
 		fn push_builtin_monadic(
@@ -847,7 +847,7 @@ mod runtime_object {
 			+ 'static,
 		) {
 			let fn_ref = self.create_object(LispObject::BuiltinMonadic(Rc::new(f)));
-			self.stack.push((name.into(), fn_ref));
+			self.stack.last_mut().unwrap().push((name.into(), fn_ref));
 		}
 
 		#[inline(always)]
@@ -884,6 +884,7 @@ mod runtime_object {
 		pub fn get_stack_var(&self, id: &str) -> Result<ObjectReference<'a, N>, RuntimeError> {
 			self.stack
 				.iter()
+				.flat_map(|frame| frame.iter())
 				.rev()
 				.find(|(s, _)| id == s.as_str())
 				.map(|(_, val)| *val)
@@ -894,14 +895,19 @@ mod runtime_object {
 			let obj_ref = self
 				.stack
 				.iter()
+				.flat_map(|frame| frame.iter())
 				.rev()
 				.find(|(s, _)| id == s.as_str())
 				.map(|(_, val)| *val);
 			let r = match obj_ref {
 				Some(r) => r,
 				None => {
-					let r = self.create_object(LispObject::Atom("nil".into()));
-					self.stack.push((id.into(), r));
+					let r = self.nil();
+					let stack = match self.stack.last_mut() {
+						Some(s) => s,
+						None => self.stack.push_mut(Vec::new()),
+					};
+					stack.push((id.into(), r));
 					r
 				}
 			};
