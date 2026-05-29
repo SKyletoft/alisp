@@ -33,29 +33,36 @@ pub(crate) mod parse_tree {
 		},
 	}
 
+	#[cfg(test)]
 	pub(crate) fn atom(s: &str) -> LispParseTree {
 		LispParseTree::Atom(s.into())
 	}
 
+	#[cfg(test)]
 	pub(crate) fn quote(l: LispParseTree) -> LispParseTree {
 		LispParseTree::Quote(Box::new(l))
 	}
 
+	#[cfg(test)]
 	pub(crate) fn quasiquote(l: LispParseTree) -> LispParseTree {
 		LispParseTree::Quasiquote(Box::new(l))
 	}
 
+	#[cfg(test)]
 	pub(crate) fn list<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
 		ls.into_iter().collect::<Vec<_>>().into()
 	}
 
+	#[cfg(test)]
 	pub(crate) fn array<const N: usize>(ls: [LispParseTree; N]) -> LispParseTree {
 		LispParseTree::Array(Box::new(ls))
 	}
 
+	#[cfg(test)]
 	#[allow(non_upper_case_globals)]
 	pub(crate) const int: fn(i32) -> LispParseTree = LispParseTree::Integer;
 
+	#[cfg(test)]
 	#[allow(non_upper_case_globals)]
 	pub(crate) const float: fn(f64) -> LispParseTree = LispParseTree::Float;
 
@@ -979,7 +986,10 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 mod iter_test {
 	use quickcheck_macros::quickcheck;
 
-	use super::*;
+	use super::{
+		LispParseTree,
+		parse_tree::{array, atom, float, int, list, quasiquote, quote},
+	};
 
 	#[test]
 	fn list_iter_empty() {
