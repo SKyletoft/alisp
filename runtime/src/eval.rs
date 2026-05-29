@@ -94,8 +94,7 @@ pub fn eval<'a>(
 					let arg = env.get(evalled).clone();
 					f(arg, env)?
 				}
-				func => {
-					dbg!(func, args_iter);
+				_ => {
 					return Err(RuntimeError::TypeError {
 						expected: Some(LispType::Function),
 						actual: None,
