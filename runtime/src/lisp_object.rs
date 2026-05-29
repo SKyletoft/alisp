@@ -359,7 +359,7 @@ mod runtime_object {
 				LispParseTree::Atom(s) => env.create_object(LispObject::Atom(s)),
 				LispParseTree::Integer(i) => env.create_object(LispObject::Integer(i)),
 				LispParseTree::Float(f) => env.create_object(LispObject::Float(f)),
-				LispParseTree::String(_) => todo!(),
+				LispParseTree::String(s) => env.create_object(LispObject::String(s)),
 				LispParseTree::Array(arr) => {
 					let arr: Vec<ObjectReference<'a, N>> = arr
 						.into_vec()
@@ -415,6 +415,7 @@ mod runtime_object {
 		Atom(SmallString),
 		Integer(i32),
 		Float(f64),
+		String(String),
 		Pair(ObjectReference<'a, N>, ObjectReference<'a, N>),
 		Array(Box<[ObjectReference<'a, N>]>),
 		Lambda {
@@ -444,6 +445,7 @@ mod runtime_object {
 				LispObject::Atom(_) => LispType::Atom,
 				LispObject::Integer(_) => LispType::Integer,
 				LispObject::Float(_) => LispType::Float,
+				LispObject::String(_) => LispType::String,
 				LispObject::Pair(..) => LispType::Pair,
 				LispObject::Array(..) => LispType::Array,
 				LispObject::Lambda { .. }
@@ -468,6 +470,7 @@ mod runtime_object {
 			LispObject::Atom(s) => write!(f, "{s}"),
 			LispObject::Integer(n) => write!(f, "{n}"),
 			LispObject::Float(n) => write!(f, "{n}"),
+			LispObject::String(s) => write!(f, "{s:?}"),
 			LispObject::Pair(car, cdr) => write_lisp_pair(f, *car, *cdr, env),
 			LispObject::Array(arr) => {
 				write_array(f, arr, |f, elem| write_lisp_elem(f, env.get(*elem), env))
@@ -550,27 +553,57 @@ mod runtime_object {
 
 	impl<'a, const N: usize> fmt::Debug for LispObject<'a, N> {
 		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			#[derive(Debug)]
+			// Dead code analysis ignores Debug impls and this struct is exclusively here for its Debug impl
+			#[allow(dead_code)]
+			pub enum LispObjectDebug<'a, 'b, const N: usize = 0> {
+				Atom(&'b SmallString),
+				Integer(&'b i32),
+				Float(&'b f64),
+				String(&'b String),
+				Pair(&'b ObjectReference<'a, N>, &'b ObjectReference<'a, N>),
+				Array(&'b [ObjectReference<'a, N>]),
+				Lambda {
+					params: &'b SmallVec<[(SmallString, Option<LispType>); 1]>,
+					ret_ty: &'b Option<LispType>,
+					body: &'b Vec<ObjectReference<'a, N>>,
+				},
+				Macro {
+					params: &'b SmallVec<[SmallString; 1]>,
+					body: &'b Vec<ObjectReference<'a, N>>,
+				},
+				Quote(&'b ObjectReference<'a, N>),
+				// Quasiquote(ObjectReference<'a, N>),
+				// Unquote(ObjectReference<'a, N>),
+			}
+
 			match self {
-				LispObject::Atom(s) => f.debug_tuple("Atom").field(s).finish(),
-				LispObject::Integer(i) => f.debug_tuple("Integer").field(i).finish(),
-				LispObject::Float(fl) => f.debug_tuple("Float").field(fl).finish(),
-				LispObject::Pair(a, b) => f.debug_tuple("Pair").field(a).field(b).finish(),
-				LispObject::Array(arr) => f.debug_tuple("Array").field(arr).finish(),
+				LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
+					write!(f, "Builtin")
+				}
+				LispObject::Atom(s) => write!(f, "{:?}", LispObjectDebug::<N>::Atom(s)),
+				LispObject::Integer(v) => write!(f, "{:?}", LispObjectDebug::<N>::Integer(v)),
+				LispObject::Float(v) => write!(f, "{:?}", LispObjectDebug::<N>::Float(v)),
+				LispObject::String(v) => write!(f, "{:?}", LispObjectDebug::<N>::String(v)),
+				LispObject::Pair(a, b) => write!(f, "{:?}", LispObjectDebug::<N>::Pair(a, b)),
+				LispObject::Array(v) => write!(f, "{:?}", LispObjectDebug::<N>::Array(v)),
 				LispObject::Lambda {
 					params,
 					ret_ty,
 					body,
-				} => f
-					.debug_struct("Lambda")
-					.field("params", params)
-					.field("ret_ty", ret_ty)
-					.field("body", body)
-					.finish(),
-				LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
-					f.debug_struct("Builtin").finish()
+				} => write!(
+					f,
+					"{:?}",
+					LispObjectDebug::<N>::Lambda {
+						params,
+						ret_ty,
+						body
+					}
+				),
+				LispObject::Macro { params, body } => {
+					write!(f, "{:?}", LispObjectDebug::<N>::Macro { params, body })
 				}
-				LispObject::Quote(inner) => f.debug_tuple("Quote").field(inner).finish(),
-				LispObject::Macro { .. } => todo!(),
+				LispObject::Quote(v) => write!(f, "{:?}", LispObjectDebug::<N>::Quote(v)),
 			}
 		}
 	}
@@ -945,6 +978,7 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 		LispObject::Atom(s) => LispParseTree::Atom(s.clone()),
 		LispObject::Integer(i) => LispParseTree::Integer(*i),
 		LispObject::Float(f) => LispParseTree::Float(*f),
+		LispObject::String(s) => LispParseTree::String(s.clone()),
 		LispObject::Pair(car, cdr) => {
 			let car = lisp_object_to_parse_tree(env.get(*car), env);
 			let cdr = lisp_object_to_parse_tree(env.get(*cdr), env);
