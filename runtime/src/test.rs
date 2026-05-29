@@ -222,7 +222,15 @@ fn immediately_invoked_lambda() {
 }
 
 #[test]
-fn defun() {
+fn defun_expand() {
+	let code = "(defun square [x] (* x x))";
+	let expected = "(set 'square (lambda [x] (* x x)))";
+	let result = expand(code);
+	assert_eq!(result, Ok(expected));
+}
+
+#[test]
+fn defun_eval() {
 	let code = "(defun square [x] (* x x)) (square 2)";
 	let expected = LispParseTree::Integer(4);
 	let result = eval(code);
