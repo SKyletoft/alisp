@@ -984,65 +984,59 @@ mod iter_test {
 
 	#[test]
 	fn list_iter_one() {
-		let list: LispParseTree = vec![LispParseTree::Integer(42)].into();
+		let list: LispParseTree = list([int(42)]);
 		let items: Vec<LispParseTree> = list.into_iter().collect();
-		assert_eq!(items, vec![LispParseTree::Integer(42)]);
+		assert_eq!(items, vec![int(42)]);
 	}
 
 	#[test]
 	fn list_iter_multi() {
-		let list: LispParseTree = vec![LispParseTree::Integer(1), LispParseTree::Integer(2), LispParseTree::Integer(3)].into();
+		let list: LispParseTree = list([int(1), int(2), int(3)]);
 		let items: Vec<LispParseTree> = list.into_iter().collect();
-		assert_eq!(
-			items,
-			(1..=3).map(LispParseTree::Integer).collect::<Vec<_>>()
-		);
+		assert_eq!(items, (1..=3).map(int).collect::<Vec<_>>());
 	}
 
 	#[test]
 	fn array_iter_empty() {
-		let arr = LispParseTree::Array(Box::new([]));
+		let arr = array([]);
 		let items: Vec<LispParseTree> = arr.into_iter().collect();
 		assert!(items.is_empty());
 	}
 
 	#[test]
 	fn array_iter_one() {
-		let arr = LispParseTree::Array(Box::new([LispParseTree::Integer(42)]));
+		let arr = array([int(42)]);
 		let items: Vec<LispParseTree> = arr.into_iter().collect();
-		assert_eq!(items, vec![LispParseTree::Integer(42)]);
+		assert_eq!(items, vec![int(42)]);
 	}
 
 	#[test]
 	fn array_iter_multi() {
-		let arr = LispParseTree::Array(Box::new([1, 2, 3].map(LispParseTree::Integer)));
+		let arr = array([int(1), int(2), int(3)]);
 		let items: Vec<LispParseTree> = arr.into_iter().collect();
-		assert_eq!(
-			items,
-			(1..=3).map(LispParseTree::Integer).collect::<Vec<_>>()
-		);
+		assert_eq!(items, (1..=3).map(int).collect::<Vec<_>>());
 	}
 
 	#[quickcheck]
 	fn list_iter_equals_vec(v: Vec<i32>) {
-		let list: LispParseTree = v.iter().map(|&n| LispParseTree::Integer(n)).collect::<Vec<_>>().into();
+		let list: LispParseTree = v.iter().map(|&n| int(n)).collect::<Vec<_>>().into();
 		let items: Vec<LispParseTree> = list.into_iter().collect();
-		let expected: Vec<LispParseTree> = v.into_iter().map(LispParseTree::Integer).collect();
+		let expected: Vec<LispParseTree> = v.into_iter().map(int).collect();
 		assert_eq!(items, expected);
 	}
 
 	#[quickcheck]
 	fn array_iter_equals_vec(v: Vec<i32>) {
-		let arr = LispParseTree::Array(v.iter().map(|&n| LispParseTree::Integer(n)).collect());
+		let arr = LispParseTree::Array(v.iter().map(|&n| int(n)).collect());
 		let items: Vec<LispParseTree> = arr.into_iter().collect();
-		let expected: Vec<LispParseTree> = v.into_iter().map(LispParseTree::Integer).collect();
+		let expected: Vec<LispParseTree> = v.into_iter().map(int).collect();
 		assert_eq!(items, expected);
 	}
 
 	#[quickcheck]
 	fn list_and_array_iter_match(v: Vec<i32>) {
-		let list: LispParseTree = v.iter().map(|&n| LispParseTree::Integer(n)).collect::<Vec<_>>().into();
-		let arr = LispParseTree::Array(v.iter().map(|&n| LispParseTree::Integer(n)).collect());
+		let list: LispParseTree = v.iter().map(|&n| int(n)).collect::<Vec<_>>().into();
+		let arr = LispParseTree::Array(v.iter().map(|&n| int(n)).collect());
 		let list_items: Vec<LispParseTree> = list.into_iter().collect();
 		let arr_items: Vec<LispParseTree> = arr.into_iter().collect();
 		assert_eq!(list_items, arr_items);
