@@ -26,7 +26,7 @@ pub(crate) mod parse_tree {
 		},
 		Quote(Box<LispParseTree>),
 		Quasiquote(Box<LispParseTree>),
-		// Unquote(Box<LispParseTree>),
+		Unquote(Box<LispParseTree>),
 		Macro {
 			params: SmallVec<[SmallString; 1]>,
 			body: Vec<LispParseTree>,
@@ -46,6 +46,11 @@ pub(crate) mod parse_tree {
 	#[cfg(test)]
 	pub(crate) fn quasiquote(l: LispParseTree) -> LispParseTree {
 		LispParseTree::Quasiquote(Box::new(l))
+	}
+
+	#[cfg(test)]
+	pub(crate) fn unquote(l: LispParseTree) -> LispParseTree {
+		LispParseTree::Unquote(Box::new(l))
 	}
 
 	#[cfg(test)]
@@ -116,6 +121,7 @@ pub(crate) mod parse_tree {
 					LispParseTree::String(s) => write!(f, "{s:?}"),
 					LispParseTree::Quote(inner) => write!(f, "'{inner}"),
 					LispParseTree::Quasiquote(_) => todo!(),
+					LispParseTree::Unquote(_) => todo!(),
 					LispParseTree::Array(arr) => write_array(f, arr, write_elem),
 					LispParseTree::Lambda {
 						params,
@@ -232,8 +238,9 @@ pub(crate) mod parse_tree {
 				LispParseTree::Lambda { .. } => LispType::Function,
 				LispParseTree::String(_) => LispType::String,
 				LispParseTree::Array(..) => LispType::Array,
-				LispParseTree::Quote(_) => LispType::Code,
-				LispParseTree::Quasiquote(_) => todo!(),
+				LispParseTree::Quote(_)
+				| LispParseTree::Quasiquote(_)
+				| LispParseTree::Unquote(_) => todo!(),
 				LispParseTree::Macro { .. } => LispType::Macro,
 			};
 			Some(res)
@@ -394,6 +401,7 @@ mod runtime_object {
 				}
 				LispParseTree::Quasiquote(_) => todo!(),
 				LispParseTree::Macro { .. } => todo!(),
+				LispParseTree::Unquote(_) => todo!(),
 			}
 		}
 	}
@@ -430,6 +438,8 @@ mod runtime_object {
 		BuiltinDyadic(BuiltinDyadicFn<'a, N>),
 		BuiltinMonadic(BuiltinMonadicFn<'a, N>),
 		Quote(ObjectReference<'a, N>),
+		Quasiquote(ObjectReference<'a, N>),
+		Unquote(ObjectReference<'a, N>),
 	}
 
 	impl<'a, const N: usize> LispObject<'a, N> {
@@ -452,7 +462,9 @@ mod runtime_object {
 				| LispObject::BuiltinDyadic(_)
 				| LispObject::BuiltinMonadic(_) => LispType::Function,
 				LispObject::Macro { .. } => LispType::Macro,
-				LispObject::Quote(_) => LispType::Code,
+				LispObject::Quote(_) | LispObject::Quasiquote(_) | LispObject::Unquote(_) => {
+					LispType::Code
+				}
 			}
 		}
 
@@ -499,6 +511,14 @@ mod runtime_object {
 			}
 			LispObject::Quote(inner) => {
 				write!(f, "'")?;
+				write_lisp_elem(f, env.get(*inner), env)
+			}
+			LispObject::Quasiquote(inner) => {
+				write!(f, "`")?;
+				write_lisp_elem(f, env.get(*inner), env)
+			}
+			LispObject::Unquote(inner) => {
+				write!(f, ",")?;
 				write_lisp_elem(f, env.get(*inner), env)
 			}
 			LispObject::Macro { .. } => todo!(),
@@ -573,8 +593,8 @@ mod runtime_object {
 					body: &'b Vec<ObjectReference<'a, N>>,
 				},
 				Quote(&'b ObjectReference<'a, N>),
-				// Quasiquote(ObjectReference<'a, N>),
-				// Unquote(ObjectReference<'a, N>),
+				Quasiquote(&'b ObjectReference<'a, N>),
+				Unquote(&'b ObjectReference<'a, N>),
 			}
 
 			match self {
@@ -604,6 +624,8 @@ mod runtime_object {
 					write!(f, "{:?}", LispObjectDebug::<N>::Macro { params, body })
 				}
 				LispObject::Quote(v) => write!(f, "{:?}", LispObjectDebug::<N>::Quote(v)),
+				LispObject::Quasiquote(v) => write!(f, "{:?}", LispObjectDebug::<N>::Quasiquote(v)),
+				LispObject::Unquote(v) => write!(f, "{:?}", LispObjectDebug::<N>::Unquote(v)),
 			}
 		}
 	}
@@ -1005,6 +1027,12 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 		LispObject::Quote(inner) => {
 			LispParseTree::Quote(Box::new(lisp_object_to_parse_tree(env.get(*inner), env)))
 		}
+		LispObject::Quasiquote(inner) => {
+			LispParseTree::Quasiquote(Box::new(lisp_object_to_parse_tree(env.get(*inner), env)))
+		}
+		LispObject::Unquote(inner) => {
+			LispParseTree::Unquote(Box::new(lisp_object_to_parse_tree(env.get(*inner), env)))
+		}
 		LispObject::Array(arr) => {
 			let arr: Vec<LispParseTree> = arr
 				.iter()
@@ -1022,7 +1050,7 @@ mod iter_test {
 
 	use super::{
 		LispParseTree,
-		parse_tree::{array, atom, float, int, list, quasiquote, quote},
+		parse_tree::{array, int, list},
 	};
 
 	#[test]
