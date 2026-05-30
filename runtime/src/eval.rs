@@ -15,6 +15,10 @@ pub enum RuntimeError {
 	TooManyArguments,
 	#[display("alisp doesn't support curried functions (= not enough arguments in function call)")]
 	NoCurrying,
+	#[display("Too many arguments in macro")]
+	TooManyArgumentsMacro,
+	#[display("alisp doesn't support curried macros (= not enough arguments in macro call)")]
+	NoCurryingMacro,
 	#[display("Division by zero")]
 	DivisionByZero,
 	#[display("Assignment to non-identifier")]
