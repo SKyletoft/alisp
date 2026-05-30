@@ -1,11 +1,11 @@
 use smallvec::SmallVec;
 
-use crate::lisp_object::{Env, LispObject, LispType, ObjectReference};
+use crate::lisp_object::{Env, LispObject, LispType, ObjectReference, SmallString};
 
 #[derive(Debug, PartialEq, derive_more::Display)]
 pub enum RuntimeError {
-	#[display("Undefined variable")]
-	UndefinedVariable,
+	#[display("Undefined variable: {_0:?}")]
+	UndefinedVariable(SmallString),
 	#[display("Type error: {expected:?} ≠ {actual:?}")]
 	TypeError {
 		expected: Option<LispType>,

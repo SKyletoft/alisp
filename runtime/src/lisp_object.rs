@@ -928,7 +928,7 @@ mod runtime_object {
 				.rev()
 				.find(|(s, _)| id == s.as_str())
 				.map(|(_, val)| *val)
-				.ok_or(RuntimeError::UndefinedVariable)
+				.ok_or(RuntimeError::UndefinedVariable(id.into()))
 		}
 
 		pub fn get_stack_var_mut(&mut self, id: &str) -> &mut LispObject<'a, N> {
