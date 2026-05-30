@@ -83,9 +83,11 @@ pub fn eval<'a>(
 					env.stack.pop();
 					result
 				}
-				LispObject::Macro { params, body } => {
-					todo!()
-				}
+				LispObject::Macro { params, body } => expand(env, &params, args_iter, &body)?
+					.into_iter()
+					.map(|e| eval(e, env))
+					.last()
+					.unwrap_or(Ok(expr))?,
 				LispObject::BuiltinDyadic(f) => {
 					let l_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
 					let l_evalled = eval(l_ref, env)?;
@@ -115,6 +117,108 @@ pub fn eval<'a>(
 		_ => expr,
 	};
 
+	Ok(res)
+}
+
+pub fn expand<'a>(
+	env: &mut Env<'a>,
+	params: &[SmallString],
+	mut first_arg: ObjectReference<'a>,
+	body: &[ObjectReference<'a>],
+) -> Result<Vec<ObjectReference<'a>>, RuntimeError> {
+	let mut stack_frame = Vec::new();
+	for param_name in params.iter() {
+		let arg = first_arg.next(env).ok_or(RuntimeError::NoCurryingMacro)?;
+		stack_frame.push((param_name.clone(), arg));
+	}
+	if first_arg.next(env).is_some() {
+		return Err(RuntimeError::TooManyArgumentsMacro);
+	}
+
+	fn expand_inner<'a>(
+		env: &mut Env<'a>,
+		stack_frame: &[(SmallString, ObjectReference<'a>)],
+		obj_ref: ObjectReference<'a>,
+	) -> ObjectReference<'a> {
+		let obj = obj_ref.get(env).clone();
+		match obj {
+			LispObject::Atom(a)
+				if let Some((_, val)) = stack_frame.iter().find(|(b, _)| a == *b) =>
+			{
+				*val
+			}
+			LispObject::Pair(head, tail) => {
+				let head_expanded = expand_inner(env, stack_frame, head);
+				let tail_expanded = expand_inner(env, stack_frame, tail);
+				if (head, tail) == (head_expanded, tail_expanded) {
+					obj_ref
+				} else {
+					env.create_object(LispObject::Pair(head_expanded, tail_expanded))
+				}
+			}
+			LispObject::Array(object_references) => {
+				let result: Vec<_> = object_references
+					.iter()
+					.map(|elem| expand_inner(env, stack_frame, *elem))
+					.collect();
+				if result.as_slice() == object_references.as_ref() {
+					obj_ref
+				} else {
+					env.create_object(LispObject::Array(result.into_boxed_slice()))
+				}
+			}
+			LispObject::Lambda {
+				params,
+				ret_ty,
+				body,
+			} => {
+				let result_body: Vec<_> = body
+					.iter()
+					.map(|expr| expand_inner(env, stack_frame, *expr))
+					.collect();
+				if result_body == body {
+					obj_ref
+				} else {
+					env.create_object(LispObject::Lambda {
+						params,
+						ret_ty,
+						body: result_body,
+					})
+				}
+			}
+			LispObject::Macro { params, body } => {
+				let result_body: Vec<_> = body
+					.iter()
+					.map(|expr| expand_inner(env, stack_frame, *expr))
+					.collect();
+				if result_body == body {
+					obj_ref
+				} else {
+					env.create_object(LispObject::Macro {
+						params,
+						body: result_body,
+					})
+				}
+			}
+
+			LispObject::Unquote(_) => todo!(),
+
+			LispObject::BuiltinDyadic(_)
+			| LispObject::BuiltinMonadic(_)
+			| LispObject::Quote(_)
+			| LispObject::Quasiquote(_)
+			| LispObject::Atom(_)
+			| LispObject::Integer(_)
+			| LispObject::Float(_)
+			| LispObject::String(_) => obj_ref,
+		}
+	}
+
+	let res = body
+		.iter()
+		.copied()
+		.map(|b| expand_inner(env, &stack_frame, b))
+		.collect();
 	Ok(res)
 }
 
