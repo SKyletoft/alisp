@@ -509,9 +509,147 @@ fn macro_does_not_expand_in_quote() {
 }
 
 #[test]
+fn quote_outside_macro_keeps_nested_quasiquote_literal() {
+	let code = "'(a `(b ,c) d)";
+	let expected = list([
+		atom("a"),
+		quasiquote(list([atom("b"), unquote(atom("c"))])),
+		atom("d"),
+	]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn quote_inside_macro_keeps_nested_quasiquote_literal() {
+	let code = "(set 'm (macro [x] '(a `(b ,x) d))) (m 7)";
+	let expected = list([
+		atom("a"),
+		quasiquote(list([atom("b"), unquote(atom("x"))])),
+		atom("d"),
+	]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn quote_inside_macro_keeps_plain_data_literal() {
+	let code = "(set 'm (macro [x] '(a b c))) (m 7)";
+	let expected = list([atom("a"), atom("b"), atom("c")]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn quasiquote_outside_macro_unquotes_expression() {
+	let code = "`(a ,(+ 1 2) d)";
+	let expected = list([atom("a"), int(3), atom("d")]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn quasiquote_outside_macro_unquotes_head_and_tail() {
+	let code = "`(,(+ 1 2) b ,(+ 3 4))";
+	let expected = list([int(3), atom("b"), int(7)]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn nested_quasiquote_preserves_inner_unquote() {
+	let code = "``(a ,x)";
+	let expected = quasiquote(list([atom("a"), unquote(atom("x"))]));
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn nested_quasiquote_preserves_inner_unquote_in_macro() {
+	let code = "(set 'm (macro [x] ``(a ,x))) (m 7)";
+	let expected = quasiquote(list([atom("a"), unquote(atom("x"))]));
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macro_call_inside_quote_stays_literal() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) '(m 1)";
+	let expected = list([atom("m"), int(1)]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macro_call_inside_quasiquote_expands() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) `(m 1)";
+	let expected = list([atom("+"), int(1), int(1)]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macro_call_inside_quasiquoted_list_expands() {
+	let code = "(set 'm (macro [x] (+ 1 ,x))) `(1 (m 1) 3)";
+	let expected = list([int(1), list([atom("+"), int(1), int(1)]), int(3)]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macro_argument_quoted_list_stays_quoted() {
+	let code = "(set 'm (macro [x] x)) (m '(1 2 3))";
+	let expected = quote(list([int(1), int(2), int(3)]));
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macro_argument_quasiquoted_list_splices() {
+	let code = "(set 'm (macro [x] x)) (m `(1 ,(+ 1 2) 3))";
+	let expected = list([int(1), int(3), int(3)]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macro_returns_quoted_code_without_expanding_it() {
+	let code = "(set 'm (macro [x] '(m ,x))) (m 9)";
+	let expected = list([atom("m"), unquote(atom("x"))]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macro_returns_quasiquoted_code_with_nested_quote() {
+	let code = r#"
+		(set 'm (macro [x] `(m '(inner ,x))))
+		(m 9)
+	"#;
+	let expected = list([atom("m"), quote(list([atom("inner"), unquote(atom("x"))]))]);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
 fn var_goes_out_of_scope() {
-	let code = "(set 'f (lambda [x] (set 'y 1) x)) x";
-	let expected = Err(RuntimeError::UndefinedVariable);
+	let code = r#"
+		(set 'f (lambda [x] (set 'y 1) x))
+		x
+	"#;
+	let expected = Err(RuntimeError::UndefinedVariable("x".into()));
 	let res = eval(code);
 	assert_eq!(res, expected);
+}
+
+#[test]
+fn shadowing_args_dont_alias_in_call() {
+	let code = r#"
+		(set 'x 5)
+		(set 'f (lambda [x y] (+ x y)))
+		(f 6 x)
+	"#;
+	let expected = int(11);
+	let res = eval(code);
+	assert_eq!(res, Ok(expected));
 }
