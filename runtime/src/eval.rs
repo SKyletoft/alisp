@@ -2,7 +2,7 @@ use smallvec::SmallVec;
 
 use crate::lisp_object::{Env, LispObject, LispType, ObjectReference};
 
-#[derive(Debug, PartialEq, derive_more::Display, derive_more::Error)]
+#[derive(Debug, PartialEq, derive_more::Display)]
 pub enum RuntimeError {
 	#[display("Undefined variable")]
 	UndefinedVariable,
@@ -24,6 +24,8 @@ pub enum RuntimeError {
 	#[display("Invalid macro construction: {msg}")]
 	BrokenMacro { msg: &'static str },
 }
+
+impl std::error::Error for RuntimeError {}
 
 fn type_guard(expected: &Option<LispType>, actual: &Option<LispType>) -> Result<(), RuntimeError> {
 	match (expected, actual) {
