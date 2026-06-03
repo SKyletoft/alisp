@@ -133,7 +133,9 @@ pub fn parse_many(
 }
 
 fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
+	let (rem, _) = multispace0(code)?;
 	alt((
+		parse_unquote,
 		parse_quote,
 		parse_quasiquote,
 		parse_float,
@@ -144,7 +146,7 @@ fn parse_object(code: &str) -> IResult<&str, LispParseTree> {
 		// parse_map,
 		parse_atom,
 	))
-	.parse(code)
+	.parse(rem)
 }
 
 fn is_atom_continue(c: char) -> bool {
