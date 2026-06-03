@@ -366,18 +366,30 @@ mod test {
 
 	#[test]
 	fn quoted_int_list() {
-		let code = "'(1 2 3)";
+		let code1 = "'(1 2 3)";
+		let code2 = "' (1 2 3)";
+
 		let expected = quote(list([int(1), int(2), int(3)]));
-		let result = super::parse(code);
-		assert_eq!(result, Ok(expected));
+
+		let result1 = super::parse(code1);
+		let result2 = super::parse(code2);
+
+		assert_eq!(result1, Ok(expected.clone()));
+		assert_eq!(result2, Ok(expected));
 	}
 
 	#[test]
 	fn quasiquoted_int_list() {
-		let code = "`(1 2 3)";
+		let code1 = "`(1 2 3)";
+		let code2 = "` (1 2 3)";
+
 		let expected = quasiquote(list([int(1), int(2), int(3)]));
-		let result = super::parse(code);
-		assert_eq!(result, Ok(expected));
+
+		let result1 = super::parse(code1);
+		let result2 = super::parse(code2);
+
+		assert_eq!(result1, Ok(expected.clone()));
+		assert_eq!(result2, Ok(expected));
 	}
 
 	#[test]
