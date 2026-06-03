@@ -796,4 +796,18 @@ mod test {
 			}
 		);
 	}
+
+	#[test]
+	fn unquote() {
+		let code1 = ",x";
+		let res1 = super::parse(code1);
+
+		let code2 = ", x";
+		let res2 = super::parse(code2);
+
+		let expected = LispParseTree::Unquote(Box::new(LispParseTree::Atom("x".into())));
+
+		assert_eq!(res1, Ok(expected.clone()));
+		assert_eq!(res2, Ok(expected));
+	}
 }
