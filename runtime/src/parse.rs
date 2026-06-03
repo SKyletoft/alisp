@@ -197,6 +197,12 @@ fn parse_float(input: &str) -> IResult<&str, LispParseTree> {
 	.parse(input)
 }
 
+fn parse_unquote(input: &str) -> IResult<&str, LispParseTree> {
+	let (res, _) = char(',')(input)?;
+	let (res, obj) = parse_object(res)?;
+	Ok((res, LispParseTree::Unquote(Box::new(obj))))
+}
+
 fn parse_quote(input: &str) -> IResult<&str, LispParseTree> {
 	let (res, _) = char('\'')(input)?;
 	let (res, obj) = parse_object(res)?;
