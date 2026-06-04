@@ -398,9 +398,21 @@ mod runtime_object {
 					let inner = Self::from_parse_object(*inner, env);
 					env.create_object(LispObject::Quote(inner))
 				}
-				LispParseTree::Quasiquote(_) => todo!(),
-				LispParseTree::Macro { .. } => todo!(),
-				LispParseTree::Unquote(_) => todo!(),
+				LispParseTree::Unquote(inner) => {
+					let inner = Self::from_parse_object(*inner, env);
+					env.create_object(LispObject::Unquote(inner))
+				}
+				LispParseTree::Quasiquote(inner) => {
+					let inner = Self::from_parse_object(*inner, env);
+					env.create_object(LispObject::Quasiquote(inner))
+				}
+				LispParseTree::Macro { params, body } => {
+					let body = body
+						.into_iter()
+						.map(|l| Self::from_parse_object(l, env))
+						.collect();
+					env.create_object(LispObject::Macro { params, body })
+				}
 			}
 		}
 	}
