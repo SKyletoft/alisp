@@ -139,17 +139,17 @@ pub fn expand<'a>(
 		env: &mut Env<'a>,
 		stack_frame: &[(SmallString, ObjectReference<'a>)],
 		obj_ref: ObjectReference<'a>,
-	) -> ObjectReference<'a> {
+	) -> Result<ObjectReference<'a>, RuntimeError> {
 		let obj = obj_ref.get(env).clone();
-		match obj {
+		let res = match obj {
 			LispObject::Atom(a)
 				if let Some((_, val)) = stack_frame.iter().find(|(b, _)| a == *b) =>
 			{
 				*val
 			}
 			LispObject::Pair(head, tail) => {
-				let head_expanded = expand_inner(env, stack_frame, head);
-				let tail_expanded = expand_inner(env, stack_frame, tail);
+				let head_expanded = expand_inner(env, stack_frame, head)?;
+				let tail_expanded = expand_inner(env, stack_frame, tail)?;
 				if (head, tail) == (head_expanded, tail_expanded) {
 					obj_ref
 				} else {
@@ -160,7 +160,7 @@ pub fn expand<'a>(
 				let result: Vec<_> = object_references
 					.iter()
 					.map(|elem| expand_inner(env, stack_frame, *elem))
-					.collect();
+					.collect::<Result<_, _>>()?;
 				if result.as_slice() == object_references.as_ref() {
 					obj_ref
 				} else {
@@ -175,7 +175,7 @@ pub fn expand<'a>(
 				let result_body: Vec<_> = body
 					.iter()
 					.map(|expr| expand_inner(env, stack_frame, *expr))
-					.collect();
+					.collect::<Result<_, _>>()?;
 				if result_body == body {
 					obj_ref
 				} else {
@@ -190,7 +190,7 @@ pub fn expand<'a>(
 				let result_body: Vec<_> = body
 					.iter()
 					.map(|expr| expand_inner(env, stack_frame, *expr))
-					.collect();
+					.collect::<Result<Vec<_>, _>>()?;
 				if result_body == body {
 					obj_ref
 				} else {
@@ -202,23 +202,24 @@ pub fn expand<'a>(
 			}
 
 			LispObject::Unquote(_) => todo!(),
+			LispObject::Quasiquote(_) => todo!(),
 
 			LispObject::BuiltinDyadic(_)
 			| LispObject::BuiltinMonadic(_)
 			| LispObject::Quote(_)
-			| LispObject::Quasiquote(_)
 			| LispObject::Atom(_)
 			| LispObject::Integer(_)
 			| LispObject::Float(_)
 			| LispObject::String(_) => obj_ref,
-		}
+		};
+		Ok(res)
 	}
 
 	let res = body
 		.iter()
 		.copied()
 		.map(|b| expand_inner(env, &stack_frame, b))
-		.collect();
+		.collect::<Result<Vec<_>, RuntimeError>>()?;
 	Ok(res)
 }
 
