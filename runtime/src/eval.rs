@@ -201,7 +201,7 @@ pub fn expand<'a>(
 				}
 			}
 
-			LispObject::Unquote(_) => todo!(),
+			LispObject::Unquote(expr) => eval(expr, env)?,
 			LispObject::Quasiquote(_) => todo!(),
 
 			LispObject::BuiltinDyadic(_)
