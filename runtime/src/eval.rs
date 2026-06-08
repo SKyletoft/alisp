@@ -137,19 +137,13 @@ pub fn expand<'a>(
 
 	fn expand_inner<'a>(
 		env: &mut Env<'a>,
-		stack_frame: &[(SmallString, ObjectReference<'a>)],
 		obj_ref: ObjectReference<'a>,
 	) -> Result<ObjectReference<'a>, RuntimeError> {
 		let obj = obj_ref.get(env).clone();
 		let res = match obj {
-			LispObject::Atom(a)
-				if let Some((_, val)) = stack_frame.iter().find(|(b, _)| a == *b) =>
-			{
-				*val
-			}
 			LispObject::Pair(head, tail) => {
-				let head_expanded = expand_inner(env, stack_frame, head)?;
-				let tail_expanded = expand_inner(env, stack_frame, tail)?;
+				let head_expanded = expand_inner(env, head)?;
+				let tail_expanded = expand_inner(env, tail)?;
 				if (head, tail) == (head_expanded, tail_expanded) {
 					obj_ref
 				} else {
@@ -159,7 +153,7 @@ pub fn expand<'a>(
 			LispObject::Array(object_references) => {
 				let result: Vec<_> = object_references
 					.iter()
-					.map(|elem| expand_inner(env, stack_frame, *elem))
+					.map(|elem| expand_inner(env, *elem))
 					.collect::<Result<_, _>>()?;
 				if result.as_slice() == object_references.as_ref() {
 					obj_ref
@@ -174,7 +168,7 @@ pub fn expand<'a>(
 			} => {
 				let result_body: Vec<_> = body
 					.iter()
-					.map(|expr| expand_inner(env, stack_frame, *expr))
+					.map(|expr| expand_inner(env, *expr))
 					.collect::<Result<_, _>>()?;
 				if result_body == body {
 					obj_ref
@@ -189,7 +183,7 @@ pub fn expand<'a>(
 			LispObject::Macro { params, body } => {
 				let result_body: Vec<_> = body
 					.iter()
-					.map(|expr| expand_inner(env, stack_frame, *expr))
+					.map(|expr| expand_inner(env, *expr))
 					.collect::<Result<Vec<_>, _>>()?;
 				if result_body == body {
 					obj_ref
@@ -215,11 +209,13 @@ pub fn expand<'a>(
 		Ok(res)
 	}
 
+	env.stack.push(stack_frame);
 	let res = body
 		.iter()
 		.copied()
-		.map(|b| expand_inner(env, &stack_frame, b))
+		.map(|b| expand_inner(env, b))
 		.collect::<Result<Vec<_>, RuntimeError>>()?;
+	env.stack.pop();
 	Ok(res)
 }
 
