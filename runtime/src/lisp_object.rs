@@ -453,6 +453,49 @@ mod runtime_object {
 		Unquote(ObjectReference<'a, N>),
 	}
 
+	impl PartialEq for LispObject<'_> {
+		fn eq(&self, other: &Self) -> bool {
+			match (self, other) {
+				(Self::Atom(l), Self::Atom(r)) => l == r,
+				(Self::Integer(l), Self::Integer(r)) => l == r,
+				(Self::Float(l), Self::Float(r)) => l == r,
+				(Self::String(l), Self::String(r)) => l == r,
+				(Self::Pair(l, l1), Self::Pair(r, r1)) => l == r && l1 == r1,
+				(Self::Array(l), Self::Array(r)) => l == r,
+				(
+					Self::Lambda {
+						params: l_params,
+						ret_ty: l_ret_ty,
+						body: l_body,
+					},
+					Self::Lambda {
+						params: r_params,
+						ret_ty: r_ret_ty,
+						body: r_body,
+					},
+				) => l_params == r_params && l_ret_ty == r_ret_ty && l_body == r_body,
+				(
+					Self::Macro {
+						params: l_params,
+						body: l_body,
+					},
+					Self::Macro {
+						params: r_params,
+						body: r_body,
+					},
+				) => l_params == r_params && l_body == r_body,
+				(Self::Quote(l), Self::Quote(r)) => l == r,
+				(Self::Quasiquote(l), Self::Quasiquote(r)) => l == r,
+				(Self::Unquote(l), Self::Unquote(r)) => l == r,
+
+				(Self::BuiltinDyadic(l), Self::BuiltinDyadic(r)) => Rc::ptr_eq(l, r),
+				(Self::BuiltinMonadic(l), Self::BuiltinMonadic(r)) => Rc::ptr_eq(l, r),
+
+				_ => false,
+			}
+		}
+	}
+
 	impl<'a, const N: usize> LispObject<'a, N> {
 		pub(crate) fn next<'b>(&'b self, env: &'b Env<'a, N>) -> Option<&'b LispObject<'a, N>> {
 			match self {
