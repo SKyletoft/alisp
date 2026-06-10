@@ -15,7 +15,7 @@ pub fn eval_in_env<'a>(code: &str, env: &mut Env<'a>) -> Result<ObjectReference<
 	let parsed = parse::parse_many(code).unwrap();
 	parsed.into_iter().try_fold(env.nil(), |_, node| {
 		let obj = ObjectReference::from_parse_object(node, env);
-		eval::eval(obj, env)
+		eval::eval_top(obj, env)
 	})
 }
 
