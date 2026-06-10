@@ -120,6 +120,80 @@ pub fn eval<'a>(
 	Ok(res)
 }
 
+fn expand_once<'a>(
+	env: &mut Env<'a>,
+	obj_ref: ObjectReference<'a>,
+) -> Result<ObjectReference<'a>, RuntimeError> {
+	let obj = obj_ref.get(env).clone();
+	let res = match obj {
+		LispObject::Pair(head, tail) => {
+			let head_expanded = expand_once(env, head)?;
+			let tail_expanded = expand_once(env, tail)?;
+			if (head, tail) == (head_expanded, tail_expanded) {
+				obj_ref
+			} else {
+				env.create_object(LispObject::Pair(head_expanded, tail_expanded))
+			}
+		}
+		LispObject::Array(object_references) => {
+			let result: Vec<_> = object_references
+				.iter()
+				.map(|elem| expand_once(env, *elem))
+				.collect::<Result<_, _>>()?;
+			if result.as_slice() == object_references.as_ref() {
+				obj_ref
+			} else {
+				env.create_object(LispObject::Array(result.into_boxed_slice()))
+			}
+		}
+		LispObject::Lambda {
+			params,
+			ret_ty,
+			body,
+		} => {
+			let result_body: Vec<_> = body
+				.iter()
+				.map(|expr| expand_once(env, *expr))
+				.collect::<Result<_, _>>()?;
+			if result_body == body {
+				obj_ref
+			} else {
+				env.create_object(LispObject::Lambda {
+					params,
+					ret_ty,
+					body: result_body,
+				})
+			}
+		}
+		LispObject::Macro { params, body } => {
+			let result_body: Vec<_> = body
+				.iter()
+				.map(|expr| expand_once(env, *expr))
+				.collect::<Result<Vec<_>, _>>()?;
+			if result_body == body {
+				obj_ref
+			} else {
+				env.create_object(LispObject::Macro {
+					params,
+					body: result_body,
+				})
+			}
+		}
+
+		LispObject::Unquote(expr) => eval(expr, env)?,
+
+		LispObject::BuiltinDyadic(_)
+		| LispObject::BuiltinMonadic(_)
+		| LispObject::Quote(_)
+		| LispObject::Quasiquote(_)
+		| LispObject::Atom(_)
+		| LispObject::Integer(_)
+		| LispObject::Float(_)
+		| LispObject::String(_) => obj_ref,
+	};
+	Ok(res)
+}
+
 pub fn expand<'a>(
 	env: &mut Env<'a>,
 	params: &[SmallString],
@@ -135,85 +209,11 @@ pub fn expand<'a>(
 		return Err(RuntimeError::TooManyArgumentsMacro);
 	}
 
-	fn expand_inner<'a>(
-		env: &mut Env<'a>,
-		obj_ref: ObjectReference<'a>,
-	) -> Result<ObjectReference<'a>, RuntimeError> {
-		let obj = obj_ref.get(env).clone();
-		let res = match obj {
-			LispObject::Pair(head, tail) => {
-				let head_expanded = expand_inner(env, head)?;
-				let tail_expanded = expand_inner(env, tail)?;
-				if (head, tail) == (head_expanded, tail_expanded) {
-					obj_ref
-				} else {
-					env.create_object(LispObject::Pair(head_expanded, tail_expanded))
-				}
-			}
-			LispObject::Array(object_references) => {
-				let result: Vec<_> = object_references
-					.iter()
-					.map(|elem| expand_inner(env, *elem))
-					.collect::<Result<_, _>>()?;
-				if result.as_slice() == object_references.as_ref() {
-					obj_ref
-				} else {
-					env.create_object(LispObject::Array(result.into_boxed_slice()))
-				}
-			}
-			LispObject::Lambda {
-				params,
-				ret_ty,
-				body,
-			} => {
-				let result_body: Vec<_> = body
-					.iter()
-					.map(|expr| expand_inner(env, *expr))
-					.collect::<Result<_, _>>()?;
-				if result_body == body {
-					obj_ref
-				} else {
-					env.create_object(LispObject::Lambda {
-						params,
-						ret_ty,
-						body: result_body,
-					})
-				}
-			}
-			LispObject::Macro { params, body } => {
-				let result_body: Vec<_> = body
-					.iter()
-					.map(|expr| expand_inner(env, *expr))
-					.collect::<Result<Vec<_>, _>>()?;
-				if result_body == body {
-					obj_ref
-				} else {
-					env.create_object(LispObject::Macro {
-						params,
-						body: result_body,
-					})
-				}
-			}
-
-			LispObject::Unquote(expr) => eval(expr, env)?,
-			LispObject::Quasiquote(_) => todo!(),
-
-			LispObject::BuiltinDyadic(_)
-			| LispObject::BuiltinMonadic(_)
-			| LispObject::Quote(_)
-			| LispObject::Atom(_)
-			| LispObject::Integer(_)
-			| LispObject::Float(_)
-			| LispObject::String(_) => obj_ref,
-		};
-		Ok(res)
-	}
-
 	env.stack.push(stack_frame);
 	let res = body
 		.iter()
 		.copied()
-		.map(|b| expand_inner(env, b))
+		.map(|b| expand_once(env, b))
 		.collect::<Result<Vec<_>, RuntimeError>>()?;
 	env.stack.pop();
 	Ok(res)
