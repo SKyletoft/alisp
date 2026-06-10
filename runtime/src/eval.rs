@@ -77,7 +77,7 @@ pub fn eval_inner<'a>(
 					let mut stack_frame = Vec::new();
 					for (param_name, param_type) in params.clone().into_iter() {
 						let arg = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
-						let evalled_arg = eval_inner(arg, env)?;
+						let evalled_arg = eval_top(arg, env)?;
 						type_guard(&param_type, &Some(evalled_arg.get(env).type_of()))?;
 						stack_frame.push((param_name.clone(), evalled_arg));
 					}
@@ -87,7 +87,7 @@ pub fn eval_inner<'a>(
 					}
 					let result = body
 						.into_iter()
-						.map(|e| eval_inner(e, env))
+						.map(|e| eval_top(e, env))
 						.last()
 						.unwrap_or(Ok(expr))?;
 					type_guard(&ret_ty, &Some(result.get(env).type_of()))?;
@@ -109,7 +109,7 @@ pub fn eval_inner<'a>(
 						.copied()
 						.map(|b| {
 							let expanded = expand_once(env, b)?;
-							eval_inner(expanded, env)
+							eval_top(expanded, env)
 						})
 						.last()
 						.unwrap_or(Ok(expr))?;
