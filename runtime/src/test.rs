@@ -11,17 +11,13 @@ use crate::{
 	parse,
 };
 
-pub fn eval_in_env<'a>(code: &str, env: &mut Env<'a>) -> Result<ObjectReference<'a>, RuntimeError> {
-	let parsed = parse::parse_many(code).unwrap();
-	parsed.into_iter().try_fold(env.nil(), |_, node| {
-		let obj = ObjectReference::from_parse_object(node, env);
-		eval::eval_top(obj, env)
-	})
-}
-
-pub fn eval(code: &str) -> Result<LispParseTree, RuntimeError> {
+fn eval(code: &str) -> Result<LispParseTree, RuntimeError> {
 	let mut env = Env::wait_for_new();
-	let res = eval_in_env(code, &mut env)?;
+	let parsed = parse::parse_many(code).unwrap();
+	let res = parsed.into_iter().try_fold((&mut env).nil(), |_, node| {
+		let obj = ObjectReference::from_parse_object(node, &mut env);
+		eval::eval_top(obj, &mut env)
+	})?;
 	let printable = crate::lisp_object::lisp_object_to_parse_tree(env.get(res), &env);
 	Ok(printable)
 }
