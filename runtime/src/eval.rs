@@ -59,10 +59,10 @@ pub fn eval_inner<'a>(
 ) -> Result<ObjectReference<'a>, RuntimeError> {
 	let res = match env.get(expr) {
 		LispObject::Pair(f, xs) if let LispObject::Atom("lambda") = f.get(env) => {
-			eval_lambda(env, *xs)?
+			eval_lambda_object(env, *xs)?
 		}
 		LispObject::Pair(f, xs) if let LispObject::Atom("macro") = f.get(env) => {
-			eval_macro(env, *xs)?
+			eval_macro_object(env, *xs)?
 		}
 		LispObject::Pair(f, x) => {
 			let mut args_iter = *x;
@@ -247,7 +247,7 @@ pub fn expand<'a>(
 	Ok(res)
 }
 
-fn eval_macro<'a>(
+fn eval_macro_object<'a>(
 	env: &mut Env<'a>,
 	mut xs: ObjectReference<'a>,
 ) -> Result<ObjectReference<'a>, RuntimeError> {
@@ -284,7 +284,7 @@ fn eval_macro<'a>(
 	Ok(env.create_object(LispObject::Macro { params, body }))
 }
 
-fn eval_lambda<'a>(
+fn eval_lambda_object<'a>(
 	env: &mut Env<'a>,
 	mut xs: ObjectReference<'a>,
 ) -> Result<ObjectReference<'a>, RuntimeError> {
