@@ -80,12 +80,11 @@ pub fn eval_inner<'a>(
 					if env.stack.len() > RECURSION_LIMIT {
 						return Err(RuntimeError::StackOverflow);
 					}
-					let ret_ty = ret_ty.clone();
 					let mut stack_frame = Vec::new();
-					for (param_name, param_type) in params.clone().into_iter() {
+					for (param_name, param_type) in params.iter() {
 						let arg = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
 						let evalled_arg = eval_top(arg, env)?;
-						type_guard(&param_type, &Some(evalled_arg.get(env).type_of()))?;
+						type_guard(param_type, &Some(evalled_arg.get(env).type_of()))?;
 						stack_frame.push((param_name.clone(), evalled_arg));
 					}
 					env.stack.push(stack_frame);
