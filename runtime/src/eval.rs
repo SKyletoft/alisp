@@ -2,6 +2,8 @@ use smallvec::SmallVec;
 
 use crate::lisp_object::{Env, LispObject, LispType, ObjectReference, SmallString};
 
+const RECURSION_LIMIT: usize = 50;
+
 #[derive(Debug, PartialEq, derive_more::Display)]
 pub enum RuntimeError {
 	#[display("Undefined variable: {_0:?}")]
@@ -27,6 +29,8 @@ pub enum RuntimeError {
 	BrokenLambda { msg: &'static str },
 	#[display("Invalid macro construction: {msg}")]
 	BrokenMacro { msg: &'static str },
+	#[display("Stack overflow")]
+	StackOverflow,
 }
 
 impl std::error::Error for RuntimeError {}
@@ -73,6 +77,9 @@ pub fn eval_inner<'a>(
 					ret_ty,
 					body,
 				} => {
+					if env.stack.len() > RECURSION_LIMIT {
+						return Err(RuntimeError::StackOverflow);
+					}
 					let ret_ty = ret_ty.clone();
 					let mut stack_frame = Vec::new();
 					for (param_name, param_type) in params.clone().into_iter() {
