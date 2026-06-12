@@ -58,10 +58,10 @@ pub fn eval_inner<'a>(
 	env: &mut Env<'a>,
 ) -> Result<ObjectReference<'a>, RuntimeError> {
 	let res = match env.get(expr) {
-		LispObject::Pair(f, xs) if matches!(f.get(env), LispObject::Atom("lambda")) => {
+		LispObject::Pair(f, xs) if let LispObject::Atom("lambda") = f.get(env) => {
 			eval_lambda(env, *xs)?
 		}
-		LispObject::Pair(f, xs) if matches!(f.get(env), LispObject::Atom("macro")) => {
+		LispObject::Pair(f, xs) if let LispObject::Atom("macro") = f.get(env) => {
 			eval_macro(env, *xs)?
 		}
 		LispObject::Pair(f, x) => {

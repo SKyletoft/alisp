@@ -1,3 +1,5 @@
+use std::assert_matches;
+
 use quickcheck::TestResult;
 use quickcheck_macros::quickcheck;
 use smallvec::smallvec;
@@ -257,14 +259,14 @@ fn fib() {
 #[test]
 fn empty_vec_to_nil() {
 	let list: LispParseTree = Vec::<LispParseTree>::new().into();
-	assert!(matches!(list, LispParseTree::Atom(s) if s == "nil"));
+	assert_matches!(list, LispParseTree::Atom(s) if s == "nil");
 }
 
 #[test]
 fn empty_vec_deque_to_nil() {
 	use std::collections::VecDeque;
 	let list: LispParseTree = VecDeque::<LispParseTree>::new().into();
-	assert!(matches!(list, LispParseTree::Atom(s) if s == "nil"));
+	assert_matches!(list, LispParseTree::Atom(s) if s == "nil");
 }
 
 #[test]
