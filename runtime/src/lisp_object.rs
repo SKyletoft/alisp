@@ -740,10 +740,6 @@ mod runtime_object {
 					monotonic_object_count: 0,
 					stack: vec![Vec::new()],
 				};
-				// let t_ref = ret.create_object(LispObject::Atom("t".into()));
-				// ret.stack.push(("t".into(), t_ref));
-				// let nil_ref = ret.create_object(LispObject::Atom("nil".into()));
-				// ret.stack.push(("nil".into(), nil_ref));
 				ret.push_builtin_dyadic("set", |id, val, env| {
 					if let LispObject::Quote(obj_ref) = id
 						&& let LispObject::Atom(ident) = obj_ref.get(env)
