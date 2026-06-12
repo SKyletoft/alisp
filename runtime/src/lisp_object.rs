@@ -1,4 +1,4 @@
-pub use parse_tree::{LispParseTree, LispType};
+pub use parse_tree::{LambdaArgs, LispParseTree, LispType, MacroArgs};
 pub use runtime_object::{Env, LispObject, LispObjectIterator, ObjectReference};
 
 pub type SmallString = smallstr::SmallString<[u8; 23]>;
@@ -20,7 +20,7 @@ pub(crate) mod parse_tree {
 		// Map(Box<[(SmallString, LispParseTree)]>),
 		String(String),
 		Lambda {
-			params: SmallVec<[(SmallString, Option<LispType>); 1]>,
+			params: LambdaArgs,
 			ret_ty: Option<LispType>,
 			body: Vec<LispParseTree>,
 		},
@@ -28,9 +28,39 @@ pub(crate) mod parse_tree {
 		Quasiquote(Box<LispParseTree>),
 		Unquote(Box<LispParseTree>),
 		Macro {
-			params: SmallVec<[SmallString; 1]>,
+			params: MacroArgs,
 			body: Vec<LispParseTree>,
 		},
+	}
+
+	#[derive(Debug, PartialEq, Clone, variantly::Variantly)]
+	pub enum LambdaArgs {
+		Limited(SmallVec<[(SmallString, Option<LispType>); 1]>),
+		Head(
+			SmallVec<[(SmallString, Option<LispType>); 1]>,
+			(SmallString, Option<LispType>),
+		),
+		HeadTail(
+			SmallVec<[(SmallString, Option<LispType>); 1]>,
+			(SmallString, Option<LispType>),
+			SmallVec<[(SmallString, Option<LispType>); 1]>,
+		),
+		Tail(
+			(SmallString, Option<LispType>),
+			SmallVec<[(SmallString, Option<LispType>); 1]>,
+		),
+	}
+
+	#[derive(Debug, PartialEq, Clone, variantly::Variantly)]
+	pub enum MacroArgs {
+		Limited(SmallVec<[SmallString; 1]>),
+		Head(SmallVec<[SmallString; 1]>, SmallString),
+		HeadTail(
+			SmallVec<[SmallString; 1]>,
+			SmallString,
+			SmallVec<[SmallString; 1]>,
+		),
+		Tail(SmallString, SmallVec<[SmallString; 1]>),
 	}
 
 	#[cfg(test)]
