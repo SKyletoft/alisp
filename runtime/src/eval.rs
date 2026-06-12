@@ -110,18 +110,20 @@ pub fn eval_inner<'a>(
 					if args_iter.next(env).is_some() {
 						return Err(RuntimeError::TooManyArgumentsMacro);
 					}
+
 					env.stack.push(stack_frame);
-					let res = body
+					let expanded = body
 						.iter()
 						.copied()
-						.map(|b| {
-							let expanded = expand_once(env, b)?;
-							eval_top(expanded, env)
-						})
-						.last()
-						.unwrap_or(Ok(expr))?;
+						.map(|b| expand_once(env, b))
+						.collect::<Result<Vec<_>, _>>()?;
 					env.stack.pop();
-					res
+
+					expanded
+						.into_iter()
+						.map(|b| eval_top(b, env))
+						.last()
+						.unwrap_or(Ok(expr))?
 				}
 				LispObject::BuiltinDyadic(f) => {
 					let l_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
