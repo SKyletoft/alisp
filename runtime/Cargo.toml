@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0"
 smallstr = { path = "../smallstr", features = [ "union", "deref_patterns" ] }
-smallvec = { version = "1.15", features = [ "union", "const_generics", "const_new" ] }
+smallvec = { path = "../smallvec", features = [ "union", "const_generics", "const_new", "deref_pure_trait" ] }
 derive_more = { version = "2", features = ["from", "display", "error"] }
 nom = "8.0"
 variantly = "0.4"
