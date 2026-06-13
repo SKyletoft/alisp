@@ -307,6 +307,7 @@ pub(crate) fn parse_type(input: &str) -> LispType {
 	match input {
 		"i32" => LispType::Integer,
 		"f64" => LispType::Float,
+		"atom" => LispType::Atom,
 		id => LispType::Named(id.into()),
 	}
 }
