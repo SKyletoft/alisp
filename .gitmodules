@@ -1,3 +1,7 @@
 [submodule "smallstr"]
 	path = smallstr
-	url = https://github.com/SKyletoft/smallstr.git
+	url = git@github.com:SKyletoft/smallstr.git
+[submodule "smallvec"]
+	path = smallvec
+	url = git@github.com:SKyletoft/rust-smallvec.git
+	branch = v1
