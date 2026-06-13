@@ -51,6 +51,165 @@ pub(crate) mod parse_tree {
 		),
 	}
 
+	impl std::fmt::Display for LambdaArgs {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			fn writer(
+				f: &mut fmt::Formatter<'_>,
+				x: &(SmallString, Option<LispType>),
+			) -> Result<(), fmt::Error> {
+				match x {
+					(id, Some(ty)) => write!(f, "({id} {ty})"),
+					(id, None) => write!(f, "{id}"),
+				}
+			}
+			match self {
+				LambdaArgs::Limited([]) => write!(f, "[]"),
+				LambdaArgs::Limited([x, xs @ ..]) => {
+					write!(f, "[")?;
+					writer(f, x)?;
+					for x in xs.iter() {
+						write!(f, " ")?;
+						writer(f, x)?;
+					}
+					write!(f, "]")
+				}
+				LambdaArgs::Head([], rest) => {
+					write!(f, "[")?;
+					writer(f, rest)?;
+					write!(f, "&]")
+				}
+				LambdaArgs::Head([x, xs @ ..], rest) => {
+					write!(f, "[")?;
+					writer(f, x)?;
+					for x in xs.iter() {
+						write!(f, " ")?;
+						writer(f, x)?;
+					}
+					write!(f, " ")?;
+					writer(f, rest)?;
+					write!(f, "&]")
+				}
+				LambdaArgs::HeadTail([], rest, []) => {
+					write!(f, "[")?;
+					writer(f, rest)?;
+					write!(f, "&]")
+				}
+				LambdaArgs::HeadTail([], rest, [y, ys @ ..]) => {
+					write!(f, "[")?;
+					writer(f, rest)?;
+					write!(f, "& ")?;
+					writer(f, y)?;
+					for y in ys.iter() {
+						write!(f, " ")?;
+						writer(f, y)?;
+					}
+					write!(f, "]")
+				}
+				LambdaArgs::HeadTail([x, xs @ ..], rest, []) => {
+					write!(f, "[")?;
+					writer(f, x)?;
+					for x in xs.iter() {
+						write!(f, " ")?;
+						writer(f, x)?;
+					}
+					write!(f, " ")?;
+					writer(f, rest)?;
+					write!(f, "&]")
+				}
+				LambdaArgs::HeadTail([x, xs @ ..], rest, [y, ys @ ..]) => {
+					write!(f, "[")?;
+					writer(f, x)?;
+					for x in xs.iter() {
+						write!(f, " ")?;
+						writer(f, x)?;
+					}
+					write!(f, " ")?;
+					writer(f, rest)?;
+					write!(f, "& ")?;
+					writer(f, y)?;
+					for y in ys.iter() {
+						write!(f, " ")?;
+						writer(f, y)?;
+					}
+					write!(f, "]")
+				}
+				LambdaArgs::Tail(rest, []) => {
+					write!(f, "[")?;
+					writer(f, rest)?;
+					write!(f, "&]")
+				}
+				LambdaArgs::Tail(rest, [x, xs @ ..]) => {
+					write!(f, "[")?;
+					writer(f, rest)?;
+					write!(f, "& ")?;
+					writer(f, x)?;
+					for x in xs.iter() {
+						write!(f, " ")?;
+						writer(f, x)?;
+					}
+					write!(f, "]")
+				}
+			}
+		}
+	}
+
+	impl std::fmt::Display for MacroArgs {
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+			match self {
+				MacroArgs::Limited([]) => write!(f, "[]"),
+				MacroArgs::Limited([x, xs @ ..]) => {
+					write!(f, "[{x}")?;
+					for x in xs.iter() {
+						write!(f, " {x}")?;
+					}
+					write!(f, "]")
+				}
+				MacroArgs::Head([], rest) => write!(f, "[{rest}&]"),
+				MacroArgs::Head([x, xs @ ..], rest) => {
+					write!(f, "[{x}")?;
+					for x in xs.iter() {
+						write!(f, " {x}")?;
+					}
+					write!(f, " {rest}&]")
+				}
+				MacroArgs::HeadTail([], rest, []) => write!(f, "[{rest}&]"),
+				MacroArgs::HeadTail([], rest, [y, ys @ ..]) => {
+					write!(f, "[{rest}& {y}")?;
+					for y in ys.iter() {
+						write!(f, " {y}")?;
+					}
+					write!(f, "]")
+				}
+				MacroArgs::HeadTail([x, xs @ ..], rest, []) => {
+					write!(f, "[{x}")?;
+					for x in xs.iter() {
+						write!(f, " {x}")?;
+					}
+					write!(f, " {rest}&]")
+				}
+				MacroArgs::HeadTail([x, xs @ ..], rest, [y, ys @ ..]) => {
+					write!(f, "[{x}")?;
+					for x in xs.iter() {
+						write!(f, " {x}")?;
+					}
+					write!(f, " {rest}& {y}")?;
+					for y in ys.iter() {
+						write!(f, " {y}")?;
+					}
+					write!(f, "]")
+				}
+				MacroArgs::Tail(rest, []) => write!(f, "[{rest}&]"),
+				MacroArgs::Tail(rest, [x, xs @ ..]) => {
+					write!(f, "[{rest}& {x}")?;
+					for x in xs.iter() {
+						write!(f, " {x}")?;
+					}
+					write!(f, "]")
+				}
+			}
+		}
+	}
+
 	#[derive(Debug, PartialEq, Clone, variantly::Variantly)]
 	pub enum MacroArgs {
 		Limited(SmallVec<[SmallString; 1]>),
