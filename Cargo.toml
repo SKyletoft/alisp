@@ -1,3 +1,6 @@
 [workspace]
 members = ["runtime", "repl", "smallstr", "smallvec"]
 resolver = "2"
+
+[patch.crates-io]
+smallvec = { path = "smallvec" }
