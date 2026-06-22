@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub use parse_tree::{LambdaArgs, LispParseTree, LispType, MacroArgs};
 pub use runtime_object::{Env, LispObject, LispObjectIterator, ObjectReference};
 
@@ -33,22 +35,40 @@ pub(crate) mod parse_tree {
 		},
 	}
 
-	#[derive(Debug, PartialEq, Clone, variantly::Variantly)]
-	pub enum LambdaArgs {
-		Limited(SmallVec<[(SmallString, Option<LispType>); 1]>),
-		Head(
-			SmallVec<[(SmallString, Option<LispType>); 1]>,
-			(SmallString, Option<LispType>),
-		),
-		HeadTail(
-			SmallVec<[(SmallString, Option<LispType>); 1]>,
-			(SmallString, Option<LispType>),
-			SmallVec<[(SmallString, Option<LispType>); 1]>,
-		),
-		Tail(
-			(SmallString, Option<LispType>),
-			SmallVec<[(SmallString, Option<LispType>); 1]>,
-		),
+	#[derive(Debug, Default, PartialEq, Clone)]
+	pub struct LambdaArgs {
+		pub(crate) pre: SmallVec<[(SmallString, Option<LispType>); 1]>,
+		pub(crate) rest: Option<(SmallString, Option<LispType>)>,
+		pub(crate) post: SmallVec<[(SmallString, Option<LispType>); 1]>,
+	}
+
+	impl LambdaArgs {
+		pub fn iter(&self) -> impl Iterator<Item = &<Self as IntoIterator>::Item> {
+			self.pre
+				.iter()
+				.chain(self.rest.iter())
+				.chain(self.post.iter())
+		}
+
+		#[allow(unused)]
+		fn invariant(&self) {
+			assert!(self.rest.is_none() && (self.pre.is_empty() || self.post.is_empty()))
+		}
+	}
+
+	impl IntoIterator for LambdaArgs {
+		type IntoIter = std::iter::Chain<
+			std::iter::Chain<
+				smallvec::IntoIter<[(SmallString, Option<LispType>); 1]>,
+				std::option::IntoIter<(SmallString, Option<LispType>)>,
+			>,
+			smallvec::IntoIter<[(SmallString, Option<LispType>); 1]>,
+		>;
+		type Item = (SmallString, Option<LispType>);
+
+		fn into_iter(self) -> Self::IntoIter {
+			self.pre.into_iter().chain(self.rest).chain(self.post)
+		}
 	}
 
 	impl std::fmt::Display for LambdaArgs {
@@ -62,164 +82,67 @@ pub(crate) mod parse_tree {
 					(id, None) => write!(f, "{id}"),
 				}
 			}
-			match self {
-				LambdaArgs::Limited([]) => write!(f, "[]"),
-				LambdaArgs::Limited([x, xs @ ..]) => {
-					write!(f, "[")?;
-					writer(f, x)?;
-					for x in xs.iter() {
-						write!(f, " ")?;
-						writer(f, x)?;
-					}
-					write!(f, "]")
-				}
-				LambdaArgs::Head([], rest) => {
-					write!(f, "[")?;
-					writer(f, rest)?;
-					write!(f, "&]")
-				}
-				LambdaArgs::Head([x, xs @ ..], rest) => {
-					write!(f, "[")?;
-					writer(f, x)?;
-					for x in xs.iter() {
-						write!(f, " ")?;
-						writer(f, x)?;
-					}
-					write!(f, " ")?;
-					writer(f, rest)?;
-					write!(f, "&]")
-				}
-				LambdaArgs::HeadTail([], rest, []) => {
-					write!(f, "[")?;
-					writer(f, rest)?;
-					write!(f, "&]")
-				}
-				LambdaArgs::HeadTail([], rest, [y, ys @ ..]) => {
-					write!(f, "[")?;
-					writer(f, rest)?;
-					write!(f, "& ")?;
-					writer(f, y)?;
-					for y in ys.iter() {
-						write!(f, " ")?;
-						writer(f, y)?;
-					}
-					write!(f, "]")
-				}
-				LambdaArgs::HeadTail([x, xs @ ..], rest, []) => {
-					write!(f, "[")?;
-					writer(f, x)?;
-					for x in xs.iter() {
-						write!(f, " ")?;
-						writer(f, x)?;
-					}
-					write!(f, " ")?;
-					writer(f, rest)?;
-					write!(f, "&]")
-				}
-				LambdaArgs::HeadTail([x, xs @ ..], rest, [y, ys @ ..]) => {
-					write!(f, "[")?;
-					writer(f, x)?;
-					for x in xs.iter() {
-						write!(f, " ")?;
-						writer(f, x)?;
-					}
-					write!(f, " ")?;
-					writer(f, rest)?;
-					write!(f, "& ")?;
-					writer(f, y)?;
-					for y in ys.iter() {
-						write!(f, " ")?;
-						writer(f, y)?;
-					}
-					write!(f, "]")
-				}
-				LambdaArgs::Tail(rest, []) => {
-					write!(f, "[")?;
-					writer(f, rest)?;
-					write!(f, "&]")
-				}
-				LambdaArgs::Tail(rest, [x, xs @ ..]) => {
-					write!(f, "[")?;
-					writer(f, rest)?;
-					write!(f, "& ")?;
-					writer(f, x)?;
-					for x in xs.iter() {
-						write!(f, " ")?;
-						writer(f, x)?;
-					}
-					write!(f, "]")
-				}
+			let mut iterator = self.iter();
+			write!(f, "[")?;
+			if let Some(x) = iterator.next() {
+				writer(f, x)?
 			}
+			for x in iterator {
+				write!(f, " ")?;
+				writer(f, x)?;
+			}
+			write!(f, "]")
 		}
 	}
 
 	impl std::fmt::Display for MacroArgs {
 		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-			match self {
-				MacroArgs::Limited([]) => write!(f, "[]"),
-				MacroArgs::Limited([x, xs @ ..]) => {
-					write!(f, "[{x}")?;
-					for x in xs.iter() {
-						write!(f, " {x}")?;
-					}
-					write!(f, "]")
-				}
-				MacroArgs::Head([], rest) => write!(f, "[{rest}&]"),
-				MacroArgs::Head([x, xs @ ..], rest) => {
-					write!(f, "[{x}")?;
-					for x in xs.iter() {
-						write!(f, " {x}")?;
-					}
-					write!(f, " {rest}&]")
-				}
-				MacroArgs::HeadTail([], rest, []) => write!(f, "[{rest}&]"),
-				MacroArgs::HeadTail([], rest, [y, ys @ ..]) => {
-					write!(f, "[{rest}& {y}")?;
-					for y in ys.iter() {
-						write!(f, " {y}")?;
-					}
-					write!(f, "]")
-				}
-				MacroArgs::HeadTail([x, xs @ ..], rest, []) => {
-					write!(f, "[{x}")?;
-					for x in xs.iter() {
-						write!(f, " {x}")?;
-					}
-					write!(f, " {rest}&]")
-				}
-				MacroArgs::HeadTail([x, xs @ ..], rest, [y, ys @ ..]) => {
-					write!(f, "[{x}")?;
-					for x in xs.iter() {
-						write!(f, " {x}")?;
-					}
-					write!(f, " {rest}& {y}")?;
-					for y in ys.iter() {
-						write!(f, " {y}")?;
-					}
-					write!(f, "]")
-				}
-				MacroArgs::Tail(rest, []) => write!(f, "[{rest}&]"),
-				MacroArgs::Tail(rest, [x, xs @ ..]) => {
-					write!(f, "[{rest}& {x}")?;
-					for x in xs.iter() {
-						write!(f, " {x}")?;
-					}
-					write!(f, "]")
-				}
+			let mut iterator = self.iter();
+			write!(f, "[")?;
+			if let Some(x) = iterator.next() {
+				write!(f, "{x}")?
 			}
+			for x in iterator {
+				write!(f, " {x}")?;
+			}
+			write!(f, "]")
 		}
 	}
 
-	#[derive(Debug, PartialEq, Clone, variantly::Variantly)]
-	pub enum MacroArgs {
-		Limited(SmallVec<[SmallString; 1]>),
-		Head(SmallVec<[SmallString; 1]>, SmallString),
-		HeadTail(
-			SmallVec<[SmallString; 1]>,
-			SmallString,
-			SmallVec<[SmallString; 1]>,
-		),
-		Tail(SmallString, SmallVec<[SmallString; 1]>),
+	#[derive(Debug, Default, PartialEq, Clone)]
+	pub struct MacroArgs {
+		pub(crate) pre: SmallVec<[SmallString; 1]>,
+		pub(crate) rest: Option<SmallString>,
+		pub(crate) post: SmallVec<[SmallString; 1]>,
+	}
+
+	impl MacroArgs {
+		pub fn iter(&self) -> impl Iterator<Item = &<Self as IntoIterator>::Item> {
+			self.pre
+				.iter()
+				.chain(self.rest.iter())
+				.chain(self.post.iter())
+		}
+
+		#[allow(unused)]
+		fn invariant(&self) {
+			assert!(self.rest.is_none() && (self.pre.is_empty() || self.post.is_empty()))
+		}
+	}
+
+	impl IntoIterator for MacroArgs {
+		type IntoIter = std::iter::Chain<
+			std::iter::Chain<
+				smallvec::IntoIter<[SmallString; 1]>,
+				std::option::IntoIter<SmallString>,
+			>,
+			smallvec::IntoIter<[SmallString; 1]>,
+		>;
+		type Item = SmallString;
+
+		fn into_iter(self) -> Self::IntoIter {
+			self.pre.into_iter().chain(self.rest).chain(self.post)
+		}
 	}
 
 	#[cfg(test)]
@@ -311,17 +234,15 @@ pub(crate) mod parse_tree {
 					LispParseTree::Quote(inner) => write!(f, "'{inner}"),
 					LispParseTree::Quasiquote(_) => todo!(),
 					LispParseTree::Unquote(_) => todo!(),
-					LispParseTree::Array(arr) => write_array(f, arr, write_elem),
+					LispParseTree::Array(arr) => {
+						crate::lisp_object::write_array(f, arr.iter(), write_elem)
+					}
 					LispParseTree::Lambda {
 						params,
 						ret_ty,
 						body,
 					} => {
-						write!(f, "(λ ")?;
-						write_array(f, params, |f, (name, ty)| match ty {
-							Some(ty) => write!(f, "({name} {ty})"),
-							None => write!(f, "{name}"),
-						})?;
+						write!(f, "(λ {params}")?;
 						if let Some(ret_ty) = ret_ty {
 							write!(f, " -> {ret_ty}")?;
 						}
@@ -336,21 +257,6 @@ pub(crate) mod parse_tree {
 					}
 					LispParseTree::Macro { .. } => todo!(),
 				}
-			}
-
-			fn write_array<T>(
-				f: &mut fmt::Formatter<'_>,
-				arr: &[T],
-				mut write_elem: impl FnMut(&mut fmt::Formatter<'_>, &T) -> fmt::Result,
-			) -> fmt::Result {
-				write!(f, "[")?;
-				for (i, elem) in arr.iter().enumerate() {
-					if i > 0 {
-						write!(f, " ")?;
-					}
-					write_elem(f, elem)?;
-				}
-				write!(f, "]")
 			}
 
 			fn write_pair(
@@ -501,9 +407,7 @@ mod runtime_object {
 		sync::atomic::{AtomicBool, Ordering},
 	};
 
-	use smallvec::SmallVec;
-
-	use super::{LispParseTree, LispType, SmallString};
+	use super::{LambdaArgs, LispParseTree, LispType, MacroArgs, SmallString};
 	use crate::eval::RuntimeError;
 
 	#[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -627,12 +531,12 @@ mod runtime_object {
 		Pair(ObjectReference<'a, N>, ObjectReference<'a, N>),
 		Array(Box<[ObjectReference<'a, N>]>),
 		Lambda {
-			params: SmallVec<[(SmallString, Option<LispType>); 1]>,
+			params: LambdaArgs,
 			ret_ty: Option<LispType>,
 			body: Vec<ObjectReference<'a, N>>,
 		},
 		Macro {
-			params: SmallVec<[SmallString; 1]>,
+			params: MacroArgs,
 			body: Vec<ObjectReference<'a, N>>,
 		},
 		BuiltinDyadic(BuiltinDyadicFn<'a, N>),
@@ -728,7 +632,9 @@ mod runtime_object {
 			LispObject::String(s) => write!(f, "{s:?}"),
 			LispObject::Pair(car, cdr) => write_lisp_pair(f, *car, *cdr, env),
 			LispObject::Array(arr) => {
-				write_array(f, arr, |f, elem| write_lisp_elem(f, env.get(*elem), env))
+				crate::lisp_object::write_array(f, arr.as_ref().iter(), |f, elem| {
+					write_lisp_elem(f, env.get(*elem), env)
+				})
 			}
 			LispObject::Lambda {
 				params,
@@ -736,7 +642,7 @@ mod runtime_object {
 				body,
 			} => {
 				write!(f, "(λ ")?;
-				write_array(f, params, |f, (name, ty)| match ty {
+				crate::lisp_object::write_array(f, params.iter(), |f, (name, ty)| match ty {
 					Some(ty) => write!(f, "({name} {ty})"),
 					None => write!(f, "{name}"),
 				})?;
@@ -766,21 +672,6 @@ mod runtime_object {
 			}
 			LispObject::Macro { .. } => todo!(),
 		}
-	}
-
-	fn write_array<T>(
-		f: &mut fmt::Formatter<'_>,
-		arr: &[T],
-		mut write_elem: impl FnMut(&mut fmt::Formatter<'_>, &T) -> fmt::Result,
-	) -> fmt::Result {
-		write!(f, "[")?;
-		for (i, elem) in arr.iter().enumerate() {
-			if i > 0 {
-				write!(f, " ")?;
-			}
-			write_elem(f, elem)?;
-		}
-		write!(f, "]")
 	}
 
 	fn write_lisp_pair<'a, const N: usize>(
@@ -827,12 +718,12 @@ mod runtime_object {
 				Pair(&'b ObjectReference<'a, N>, &'b ObjectReference<'a, N>),
 				Array(&'b [ObjectReference<'a, N>]),
 				Lambda {
-					params: &'b SmallVec<[(SmallString, Option<LispType>); 1]>,
+					params: &'b LambdaArgs,
 					ret_ty: &'b Option<LispType>,
 					body: &'b Vec<ObjectReference<'a, N>>,
 				},
 				Macro {
-					params: &'b SmallVec<[SmallString; 1]>,
+					params: &'b MacroArgs,
 					body: &'b Vec<ObjectReference<'a, N>>,
 				},
 				Quote(&'b ObjectReference<'a, N>),
@@ -1234,6 +1125,23 @@ mod runtime_object {
 	}
 }
 
+fn write_array<T>(
+	f: &mut std::fmt::Formatter<'_>,
+	iter: impl IntoIterator<Item = T>,
+	mut write_elem: impl FnMut(&mut std::fmt::Formatter<'_>, T) -> fmt::Result,
+) -> fmt::Result {
+	write!(f, "[")?;
+	let mut iter = iter.into_iter();
+	if let Some(first) = iter.next() {
+		write_elem(f, first)?;
+		for item in iter {
+			write!(f, " ")?;
+			write_elem(f, item)?;
+		}
+	}
+	write!(f, "]")
+}
+
 pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> LispParseTree {
 	match obj {
 		LispObject::Atom(s) => LispParseTree::Atom(s.clone()),
@@ -1254,9 +1162,11 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 				.iter()
 				.map(|e| lisp_object_to_parse_tree(env.get(*e), env))
 				.collect();
+			let params = params.clone();
+			let ret_ty = ret_ty.clone();
 			LispParseTree::Lambda {
-				params: params.clone(),
-				ret_ty: ret_ty.clone(),
+				params,
+				ret_ty,
 				body,
 			}
 		}

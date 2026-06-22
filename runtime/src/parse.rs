@@ -1,3 +1,5 @@
+use std::assert_matches;
+
 use nom::{
 	IResult, Parser,
 	branch::alt,
@@ -8,7 +10,7 @@ use nom::{
 };
 use smallvec::SmallVec;
 
-use crate::lisp_object::{LispParseTree, LispType, SmallString};
+use crate::lisp_object::{LambdaArgs, LispParseTree, LispType, MacroArgs, SmallString};
 
 pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'static str> {
 	match list {
@@ -16,10 +18,13 @@ pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'stat
 			let Some(LispParseTree::Array(args)) = list.next() else {
 				return Err("lambda must have an argument list");
 			};
-			let params = args
-				.into_iter()
-				.map(parse_argument)
-				.collect::<Result<SmallVec<_>, _>>()?;
+			let params = {
+				let old = args
+					.into_iter()
+					.map(parse_argument)
+					.collect::<Result<SmallVec<[(SmallString, Option<LispType>); 1]>, _>>()?;
+				parse_lambda_args(old)?
+			};
 			let Some(body_or_arrow) = list.next() else {
 				return Err("lambda must have a body");
 			};
@@ -62,7 +67,13 @@ pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'stat
 				.into_iter()
 				.map(pre_evaluate_lambdas)
 				.collect::<Result<Vec<_>, _>>()?;
-			Ok(LispParseTree::Macro { params, body })
+			Ok(LispParseTree::Macro {
+				params: MacroArgs {
+					pre: params,
+					..Default::default()
+				},
+				body,
+			})
 		}
 		LispParseTree::Pair(head, tail) => {
 			let head = pre_evaluate_lambdas(*head)?;
@@ -105,6 +116,94 @@ pub fn pre_evaluate_lambdas(list: LispParseTree) -> Result<LispParseTree, &'stat
 		}
 		other => Ok(other),
 	}
+}
+
+pub(crate) fn parse_lambda_args(
+	mut old: SmallVec<[(SmallString, Option<LispType>); 1]>,
+) -> Result<LambdaArgs, &'static str> {
+	let ret = match old.iter().position(|(c, _)| c == "&") {
+		Some(idx) if old.iter().rev().position(|(c, _)| c == "&") != Some(old.len() - idx - 1) => {
+			return Err("Lambda args may not contain multiple var-args sections");
+		}
+		Some(1) => {
+			let rest = Some(old.remove(0));
+			let and = old.remove(0);
+			assert_matches!(and, ("&", None));
+			let post = old;
+			LambdaArgs {
+				rest,
+				post,
+				..Default::default()
+			}
+		}
+		Some(idx) if idx == old.len() - 1 => {
+			let and = old.pop().expect("idx = len - 1 => len != 0");
+			let rest = Some(old.pop().expect("idx = len - 1 => len != 0"));
+			assert_matches!(and, ("&", None));
+			let pre = old;
+			LambdaArgs {
+				pre,
+				rest,
+				..Default::default()
+			}
+		}
+		Some(idx) => {
+			assert!(idx < old.len());
+			let pre = old[..idx - 1].into();
+			let post = old[idx + 1..].into();
+			let rest = Some(old[idx - 1].clone());
+			LambdaArgs { pre, rest, post }
+		}
+		None => LambdaArgs {
+			pre: old,
+			..Default::default()
+		},
+	};
+	Ok(ret)
+}
+
+pub(crate) fn parse_macro_args(
+	mut old: SmallVec<[SmallString; 1]>,
+) -> Result<MacroArgs, &'static str> {
+	let ret = match old.iter().position(|c| c == "&") {
+		Some(idx) if old.iter().rev().position(|c| c == "&") != Some(old.len() - idx - 1) => {
+			return Err("Lambda args may not contain multiple var-args sections");
+		}
+		Some(1) => {
+			let rest = Some(old.remove(0));
+			let and = old.remove(0);
+			assert_eq!(and, "&");
+			let post = old;
+			MacroArgs {
+				rest,
+				post,
+				..Default::default()
+			}
+		}
+		Some(idx) if idx == old.len() - 1 => {
+			let and = old.pop().expect("idx = len - 1 => len != 0");
+			let rest = Some(old.pop().expect("idx = len - 1 => len != 0"));
+			assert_eq!(and, "&");
+			let pre = old;
+			MacroArgs {
+				pre,
+				rest,
+				..Default::default()
+			}
+		}
+		Some(idx) => {
+			assert!(idx < old.len());
+			let pre = old[..idx - 1].into();
+			let post = old[idx + 1..].into();
+			let rest = Some(old[idx - 1].clone());
+			MacroArgs { pre, rest, post }
+		}
+		None => MacroArgs {
+			pre: old,
+			..Default::default()
+		},
+	};
+	Ok(ret)
 }
 
 pub fn parse(code: &str) -> Result<LispParseTree, String> {
@@ -448,7 +547,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![]),
+				params: LambdaArgs {
+					pre: smallvec![],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -473,7 +576,11 @@ mod test {
 				atom("set"),
 				quote(atom("f")),
 				LispParseTree::Lambda {
-					params: LambdaArgs::Limited(smallvec![]),
+					params: LambdaArgs {
+						pre: smallvec![],
+						rest: None,
+						post: smallvec![]
+					},
 					ret_ty: None,
 					body: vec![atom("body")],
 				}
@@ -507,13 +614,21 @@ mod test {
 				atom("set"),
 				quote(atom("f")),
 				LispParseTree::Lambda {
-					params: LambdaArgs::Limited(smallvec![]),
+					params: LambdaArgs {
+						pre: smallvec![],
+						rest: None,
+						post: smallvec![]
+					},
 					ret_ty: None,
 					body: vec![list([
 						atom("set"),
 						quote(atom("g")),
 						LispParseTree::Lambda {
-							params: LambdaArgs::Limited(smallvec![("x".into(), None)]),
+							params: LambdaArgs {
+								pre: smallvec![("x".into(), None)],
+								rest: None,
+								post: smallvec![]
+							},
 							ret_ty: None,
 							body: vec![atom("x")]
 						}
@@ -534,7 +649,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![("x".into(), None)]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), None)],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -561,10 +680,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![
-					("x".into(), Some(LispType::Integer)),
-					("y".into(), None),
-				]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), Some(LispType::Integer)), ("y".into(), None),],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: Some(LispType::Named("bool".into())),
 				body: vec![atom("body")],
 			}
@@ -591,7 +711,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![("x".into(), Some(LispType::Integer))]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), Some(LispType::Integer))],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: Some(LispType::Integer),
 				body: vec![atom("body")],
 			}
@@ -615,10 +739,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![
-					("x".into(), None),
-					("y".into(), Some(LispType::Integer)),
-				]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -645,10 +770,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![
-					("x".into(), None),
-					("y".into(), Some(LispType::Integer)),
-				]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: Some(LispType::Integer),
 				body: vec![atom("body")],
 			}
@@ -675,7 +801,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![("x".into(), None)]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), None)],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: Some(LispType::Integer),
 				body: vec![atom("body")],
 			}
@@ -700,7 +830,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![("x".into(), Some(LispType::Integer))]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), Some(LispType::Integer))],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -718,7 +852,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![("x".into(), None), ("y".into(), None)]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), None), ("y".into(), None)],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -741,7 +879,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Limited(smallvec![("x".into(), None)]),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), None)],
+					rest: None,
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![
 					list([atom("println"), atom("x")]),
@@ -821,7 +963,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Macro {
-				params: MacroArgs::Limited(smallvec![]),
+				params: MacroArgs {
+					pre: smallvec![],
+					rest: None,
+					post: smallvec![]
+				},
 				body: vec![atom("body")],
 			}
 		);
@@ -857,7 +1003,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Tail(("rest".into(), None), smallvec![]),
+				params: LambdaArgs {
+					pre: smallvec![],
+					rest: Some(("rest".into(), None)),
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -882,7 +1032,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Tail(("rest".into(), Some(LispType::Integer)), smallvec![]),
+				params: LambdaArgs {
+					pre: smallvec![],
+					rest: Some(("rest".into(), Some(LispType::Integer))),
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -905,7 +1059,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Head(smallvec![("x".into(), None)], ("rest".into(), None)),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), None)],
+					rest: Some(("rest".into(), None)),
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -934,10 +1092,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Head(
-					smallvec![("x".into(), Some(LispType::Float))],
-					("rest".into(), Some(LispType::Integer))
-				),
+				params: LambdaArgs {
+					pre: smallvec![("x".into(), Some(LispType::Float))],
+					rest: Some(("rest".into(), Some(LispType::Integer))),
+					post: smallvec![]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -960,7 +1119,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Tail(("rest".into(), None), smallvec![("tail".into(), None)]),
+				params: LambdaArgs {
+					pre: smallvec![],
+					rest: Some(("rest".into(), None)),
+					post: smallvec![("tail".into(), None)]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -989,10 +1152,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::Tail(
-					("rest".into(), Some(LispType::Atom)),
-					smallvec![("tail".into(), Some(LispType::Integer))]
-				),
+				params: LambdaArgs {
+					pre: smallvec![],
+					rest: Some(("rest".into(), Some(LispType::Atom))),
+					post: smallvec![("tail".into(), Some(LispType::Integer))]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -1015,11 +1179,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::HeadTail(
-					smallvec![("first".into(), None)],
-					("rest".into(), None),
-					smallvec![("last".into(), None)]
-				),
+				params: LambdaArgs {
+					pre: smallvec![("first".into(), None)],
+					rest: Some(("rest".into(), None)),
+					post: smallvec![("last".into(), None)]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}
@@ -1049,11 +1213,11 @@ mod test {
 		assert_eq!(
 			with_lambdas,
 			LispParseTree::Lambda {
-				params: LambdaArgs::HeadTail(
-					smallvec![("first".into(), Some(LispType::Integer))],
-					("rest".into(), Some(LispType::Integer)),
-					smallvec![("last".into(), Some(LispType::Integer))]
-				),
+				params: LambdaArgs {
+					pre: smallvec![("first".into(), Some(LispType::Integer))],
+					rest: Some(("rest".into(), Some(LispType::Integer))),
+					post: smallvec![("last".into(), Some(LispType::Integer))]
+				},
 				ret_ty: None,
 				body: vec![atom("body")],
 			}

@@ -1,6 +1,9 @@
 use smallvec::SmallVec;
 
-use crate::lisp_object::{Env, LispObject, LispType, ObjectReference, SmallString};
+use crate::{
+	lisp_object::{Env, LispObject, LispType, ObjectReference, SmallString},
+	parse,
+};
 
 const RECURSION_LIMIT: usize = 50;
 
@@ -267,15 +270,19 @@ fn eval_macro_object<'a>(
 			msg: "macro must have an argument array",
 		});
 	};
-	let params = args
-		.iter()
-		.map(|arg_ref| match arg_ref.get(env) {
-			LispObject::Atom(name) => Ok(name.clone()),
-			_ => Err(RuntimeError::BrokenMacro {
-				msg: "Non-argument in argument position",
-			}),
-		})
-		.collect::<Result<SmallVec<_>, _>>()?;
+
+	let params = parse::parse_macro_args(
+		args.iter()
+			.map(|arg_ref| match arg_ref.get(env) {
+				LispObject::Atom(name) => Ok(name.clone()),
+				_ => Err(RuntimeError::BrokenMacro {
+					msg: "Non-argument in argument position",
+				}),
+			})
+			.collect::<Result<SmallVec<_>, _>>()?,
+	)
+	.map_err(|msg| RuntimeError::BrokenMacro { msg })?;
+
 	let Some(body_first) = xs.next(env) else {
 		return Err(RuntimeError::BrokenMacro {
 			msg: "macro must have a body",
@@ -304,24 +311,28 @@ fn eval_lambda_object<'a>(
 			msg: "lambda must have an argument array",
 		});
 	};
-	let params = args
-		.iter()
-		.map(|arg_ref| match arg_ref.get(env) {
-			LispObject::Atom(name) => Ok((name.clone(), None)),
-			LispObject::Pair(name_ref, rest_ref)
-				if let LispObject::Atom(name) = name_ref.get(env)
-					&& let LispObject::Pair(ty_ref, nil_ref) = rest_ref.get(env)
-					&& let LispObject::Atom(type_name) = ty_ref.get(env)
-					&& let LispObject::Atom("nil") = nil_ref.get(env) =>
-			{
-				let ty = crate::parse::parse_type(type_name);
-				Ok((name.clone(), Some(ty)))
-			}
-			_ => Err(RuntimeError::BrokenLambda {
-				msg: "Non-argument in argument position",
-			}),
-		})
-		.collect::<Result<SmallVec<_>, _>>()?;
+
+	let params = parse::parse_lambda_args(
+		args.iter()
+			.map(|arg_ref| match arg_ref.get(env) {
+				LispObject::Atom(name) => Ok((name.clone(), None)),
+				LispObject::Pair(name_ref, rest_ref)
+					if let LispObject::Atom(name) = name_ref.get(env)
+						&& let LispObject::Pair(ty_ref, nil_ref) = rest_ref.get(env)
+						&& let LispObject::Atom(type_name) = ty_ref.get(env)
+						&& let LispObject::Atom("nil") = nil_ref.get(env) =>
+				{
+					let ty = crate::parse::parse_type(type_name);
+					Ok((name.clone(), Some(ty)))
+				}
+				_ => Err(RuntimeError::BrokenLambda {
+					msg: "Non-argument in argument position",
+				}),
+			})
+			.collect::<Result<SmallVec<_>, _>>()?,
+	)
+	.map_err(|msg| RuntimeError::BrokenLambda { msg })?;
+
 	let Some(body_first) = xs.next(env) else {
 		return Err(RuntimeError::BrokenLambda {
 			msg: "lambda must have a body",
