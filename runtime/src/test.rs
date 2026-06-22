@@ -306,12 +306,9 @@ fn display_nested_list() {
 #[test]
 fn display_lambda() {
 	let lambda = LispParseTree::Lambda {
-		params: {
-			let pre = smallvec![("x".into(), None)];
-			LambdaArgs {
-				pre,
-				..Default::default()
-			}
+		params: LambdaArgs {
+			pre: smallvec![("x".into(), None)],
+			..Default::default()
 		},
 		ret_ty: None,
 		body: vec![LispParseTree::Atom("body".into())],
@@ -322,12 +319,9 @@ fn display_lambda() {
 #[test]
 fn display_lambda_multi_arg() {
 	let lambda = LispParseTree::Lambda {
-		params: {
-			let pre = smallvec![("x".into(), None), ("y".into(), None)];
-			LambdaArgs {
-				pre,
-				..Default::default()
-			}
+		params: LambdaArgs {
+			pre: smallvec![("x".into(), None), ("y".into(), None)],
+			..Default::default()
 		},
 		ret_ty: None,
 		body: vec![LispParseTree::Atom("body".into())],
@@ -339,12 +333,9 @@ fn display_lambda_multi_arg() {
 fn display_partially_typed_lambda_1() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: {
-			let pre = smallvec![("x".into(), Some(LispType::Integer))];
-			LambdaArgs {
-				pre,
-				..Default::default()
-			}
+		params: LambdaArgs {
+			pre: smallvec![("x".into(), Some(LispType::Integer))],
+			..Default::default()
 		},
 		ret_ty: None,
 		body: vec![LispParseTree::Atom("body".into())],
@@ -356,12 +347,9 @@ fn display_partially_typed_lambda_1() {
 fn display_partially_typed_lambda_2() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: {
-			let pre = smallvec![("x".into(), None)];
-			LambdaArgs {
-				pre,
-				..Default::default()
-			}
+		params: LambdaArgs {
+			pre: smallvec![("x".into(), None)],
+			..Default::default()
 		},
 		ret_ty: Some(LispType::Integer),
 		body: vec![LispParseTree::Atom("body".into())],
@@ -373,12 +361,9 @@ fn display_partially_typed_lambda_2() {
 fn display_partially_typed_lambda_3() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: {
-			let pre = smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),];
-			LambdaArgs {
-				pre,
-				..Default::default()
-			}
+		params: LambdaArgs {
+			pre: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
+			..Default::default()
 		},
 		ret_ty: Some(LispType::Integer),
 		body: vec![LispParseTree::Atom("body".into())],
@@ -390,12 +375,9 @@ fn display_partially_typed_lambda_3() {
 fn display_partially_typed_lambda_4() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: {
-			let pre = smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),];
-			LambdaArgs {
-				pre,
-				..Default::default()
-			}
+		params: LambdaArgs {
+			pre: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
+			..Default::default()
 		},
 		ret_ty: None,
 		body: vec![LispParseTree::Atom("body".into())],
@@ -407,12 +389,9 @@ fn display_partially_typed_lambda_4() {
 fn display_typed_lambda() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: {
-			let pre = smallvec![("x".into(), Some(LispType::Integer))];
-			LambdaArgs {
-				pre,
-				..Default::default()
-			}
+		params: LambdaArgs {
+			pre: smallvec![("x".into(), Some(LispType::Integer))],
+			..Default::default()
 		},
 		ret_ty: Some(LispType::Integer),
 		body: vec![LispParseTree::Atom("body".into())],
@@ -424,12 +403,9 @@ fn display_typed_lambda() {
 fn display_partial_typed_lambda() {
 	use crate::lisp_object::LispType;
 	let lambda = LispParseTree::Lambda {
-		params: {
-			let pre = smallvec![("x".into(), Some(LispType::Integer)), ("y".into(), None),];
-			LambdaArgs {
-				pre,
-				..Default::default()
-			}
+		params: LambdaArgs {
+			pre: smallvec![("x".into(), Some(LispType::Integer)), ("y".into(), None),],
+			..Default::default()
 		},
 		ret_ty: Some(LispType::Named("bool".into())),
 		body: vec![LispParseTree::Atom("body".into())],
