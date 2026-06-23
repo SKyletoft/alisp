@@ -6,20 +6,35 @@
 			url = "github:oxalica/rust-overlay";
 			inputs.nixpkgs.follows = "nixpkgs";
 		};
+		smallstr = {
+			url = "github:SKyletoft/smallstr";
+			flake = false;
+		};
+		smallvec = {
+			url = "github:SKyletoft/rust-smallvec/v1";
+			flake = false;
+		};
 	};
 
-	outputs = { self, nixpkgs, rust-overlay, flake-utils }:
+	outputs = { self, nixpkgs, rust-overlay, flake-utils, smallstr, smallvec }:
 		flake-utils.lib.eachDefaultSystem(system:
 			let
 				pkgs = import nixpkgs {
 					inherit system;
-					overlays = [( import rust-overlay )];
+					overlays = [ rust-overlay.overlays.default ];
 				};
+
 				rustToolchain = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
 					extensions = [ "rust-src" "rust-analyzer" "miri" ];
 					targets = [ "x86_64-unknown-linux-gnu" ];
 				});
-				nativeBuildInputs = with pkgs; [
+
+				rustPlatform = pkgs.makeRustPlatform {
+					cargo = rustToolchain;
+					rustc = rustToolchain;
+				};
+
+				devBuildInputs = with pkgs; [
 					rustToolchain
 					cargo-expand
 					cargo-show-asm
@@ -33,19 +48,40 @@
 					gf
 
 					kdePackages.kcachegrind
+
+					rlwrap
 				];
-			in {
-				devShells.default = pkgs.mkShell {
-					packages = nativeBuildInputs;
-				};
-				packages.default = pkgs.rustPlatform.buildRustPackage {
+
+				alisp-unwrapped = rustPlatform.buildRustPackage {
 					pname = "alisp";
 					version = "0.0.1";
-					src = self;
+					src = pkgs.runCommand "alisp-source" {} ''
+						cp -r ${self}/. $out/
+						chmod -R u+w $out
+						rm -rf $out/smallstr $out/smallvec
+						cp -r ${smallstr} $out/smallstr
+						cp -r ${smallvec} $out/smallvec
+						chmod -R u+w $out/smallstr $out/smallvec
+					'';
 					cargoLock.lockFile = ./Cargo.lock;
-
-					inherit nativeBuildInputs;
+					doCheck = false;
 				};
+
+				alisp = pkgs.runCommand "alisp-0.0.1" {
+					nativeBuildInputs = [ pkgs.makeWrapper ];
+				}
+				''
+					mkdir -p $out/bin
+					makeWrapper ${pkgs.rlwrap}/bin/rlwrap $out/bin/alisp \
+						--add-flags ${alisp-unwrapped}/bin/repl
+				'';
+			in {
+				devShells.default = pkgs.mkShell {
+					packages = devBuildInputs;
+				};
+				packages.alisp-unwrapped = alisp-unwrapped;
+				packages.alisp = alisp;
+				packages.default = alisp;
 			}
 		);
 }

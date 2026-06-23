@@ -38,7 +38,9 @@
       "inputs": {
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
-        "rust-overlay": "rust-overlay"
+        "rust-overlay": "rust-overlay",
+        "smallstr": "smallstr",
+        "smallvec": "smallvec"
       }
     },
     "rust-overlay": {
@@ -58,6 +60,39 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "smallstr": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1779352812,
+        "narHash": "sha256-B/GJ5utkp2GDuZR1OZxbQY1MHyD2lSsOdR29DCH1ZXU=",
+        "owner": "SKyletoft",
+        "repo": "smallstr",
+        "rev": "56540df00fc76ab58536a24c5f248bbf6b32ff82",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SKyletoft",
+        "repo": "smallstr",
+        "type": "github"
+      }
+    },
+    "smallvec": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1782171966,
+        "narHash": "sha256-A3RBChtIX/Rok8FyQ7orDXBm03iQqF5iYCwaxyXw0RQ=",
+        "owner": "SKyletoft",
+        "repo": "rust-smallvec",
+        "rev": "9088dbeac0eae9c322f54b76df56ad88c1ece8ff",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SKyletoft",
+        "ref": "v1",
+        "repo": "rust-smallvec",
         "type": "github"
       }
     },
