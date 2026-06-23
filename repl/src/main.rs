@@ -4,14 +4,27 @@ use runtime::{
 	parse,
 };
 
-fn main() {
-	let code = "(println \"Hello World!\")";
-	let mut env = Env::wait_for_new();
+fn run_line(code: &str, env: &mut Env) {
 	let parsed = parse::parse_many(code).unwrap();
 	let obj = parsed.into_iter().fold(env.nil(), |_, node| {
-		let obj = ObjectReference::from_parse_object(node, &mut env);
-		eval::eval_top(obj, &mut env).unwrap()
+		let obj = ObjectReference::from_parse_object(node, env);
+		eval::eval_top(obj, env).unwrap()
 	});
-	let res = lisp_object::lisp_object_to_parse_tree(obj.get(&env), &env);
+	let res = lisp_object::lisp_object_to_parse_tree(obj.get(env), env);
 	println!("{res}")
+}
+
+fn main() {
+	let mut env = Env::wait_for_new();
+
+	for line in std::io::stdin().lines() {
+		let code = match line {
+			Ok(l) => l,
+			Err(e) => {
+				eprintln!("{e:?}");
+				break;
+			}
+		};
+		run_line(&code, &mut env);
+	}
 }
