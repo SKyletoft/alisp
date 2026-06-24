@@ -411,6 +411,7 @@ mod runtime_object {
 	use crate::eval::RuntimeError;
 
 	#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+	#[repr(transparent)]
 	pub struct ObjectReference<'a, const N: usize = 0>(usize, PhantomData<&'a ()>);
 
 	impl<'a, const N: usize> fmt::Debug for ObjectReference<'a, N> {
