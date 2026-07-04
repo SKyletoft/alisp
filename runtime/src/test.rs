@@ -1167,3 +1167,26 @@ fn call_varargs() {
 	let expected = int(1 + 4);
 	assert_eq!(res, Ok(expected));
 }
+
+#[test]
+fn cant_access_out_of_scope_vars() {
+	let code = r#"
+		(set 'f (lambda [x] z))
+		(set 'g (lambda [x] (set 'z 5) (f x)))
+		(g 3)
+	"#;
+	let res = eval(code);
+	let expected = Err(RuntimeError::UndefinedVariable("z".into()));
+	assert_eq!(res, expected);
+}
+
+#[test]
+fn can_access_captures() {
+	let code = r#"
+		(set 'g (lambda [] (set 'z 5) (lambda [] z)))
+		((g))
+	"#;
+	let res = eval(code);
+	let expected = int(5);
+	assert_eq!(res, Ok(expected));
+}
