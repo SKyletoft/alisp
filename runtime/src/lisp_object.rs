@@ -804,6 +804,7 @@ pub(crate) mod runtime_object {
 				ret.push_builtin_monadic("println", builtins::println);
 				ret.push_builtin_vararg("lambda", builtins::lambda);
 				ret.push_builtin_vararg("macro", builtins::r#macro);
+				ret.push_builtin_vararg("defun", builtins::defun);
 				Ok(ret)
 			}
 		}

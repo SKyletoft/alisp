@@ -304,3 +304,16 @@ pub fn lambda<'a, const N: usize>(
 		body,
 	}))
 }
+
+pub fn defun<'a, const N: usize>(
+	env: &mut Env<'a, N>,
+	arg: &[ObjectReference<'a, N>],
+) -> Result<ObjectReference<'a, N>, RuntimeError> {
+	println(env, LispObject::Array(arg.into()))?;
+	let [id, lam @ ..] = arg else {
+		return Err(RuntimeError::BrokenLambda { msg: "from defun" });
+	};
+	let id = LispObject::Quote(*id);
+	let val = lambda(env, lam)?.get(env).clone();
+	set(env, id, val)
+}

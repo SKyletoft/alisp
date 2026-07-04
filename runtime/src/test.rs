@@ -230,14 +230,6 @@ fn immediately_invoked_lambda() {
 }
 
 #[test]
-fn defun_expand() {
-	// let code = "(defun square [x] (* x x))";
-	// let expected = "(set 'square (lambda [x] (* x x)))";
-	// let result = crate::eval::expand(code);
-	// assert_eq!(result, Ok(expected));
-}
-
-#[test]
 fn defun_eval() {
 	let code = "(defun square [x] (* x x)) (square 2)";
 	let expected = int(4);
