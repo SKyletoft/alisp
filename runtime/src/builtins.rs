@@ -1,6 +1,9 @@
+use smallvec::SmallVec;
+
 use crate::{
 	eval::RuntimeError,
 	lisp_object::{Env, LispObject, ObjectReference, runtime_object::lisp_to_string},
+	parse,
 };
 
 pub fn set<'a, const N: usize>(
@@ -202,4 +205,102 @@ pub fn println<'a, const N: usize>(
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	println!("{}", lisp_to_string(env, &arg));
 	Ok(env.create_object(LispObject::Atom("nil".into())))
+}
+
+pub fn r#macro<'a, const N: usize>(
+	env: &mut Env<'a, N>,
+	xs: &[ObjectReference<'a, N>],
+) -> Result<ObjectReference<'a, N>, RuntimeError> {
+	let [arr_ref, body @ ..] = xs else {
+		return Err(RuntimeError::BrokenMacro {
+			msg: "macro must have an argument array",
+		});
+	};
+	let LispObject::Array(args) = arr_ref.get(env) else {
+		return Err(RuntimeError::BrokenMacro {
+			msg: "macro must have an argument array",
+		});
+	};
+
+	let params = parse::parse_macro_args(
+		args.iter()
+			.map(|arg_ref| match arg_ref.get(env) {
+				LispObject::Atom(name) => Ok(name.clone()),
+				_ => Err(RuntimeError::BrokenMacro {
+					msg: "Non-argument in argument position",
+				}),
+			})
+			.collect::<Result<SmallVec<_>, _>>()?,
+	)
+	.map_err(|msg| RuntimeError::BrokenMacro { msg })?;
+
+	if let Some(LispObject::Atom("->" | "→")) = body.first().map(|r| r.get(env)) {
+		return Err(RuntimeError::BrokenMacro {
+			msg: "macro should not have a return type",
+		});
+	}
+	Ok(env.create_object(LispObject::Macro {
+		params,
+		body: body.to_vec(),
+	}))
+}
+
+pub fn lambda<'a, const N: usize>(
+	env: &mut Env<'a, N>,
+	xs: &[ObjectReference<'a, N>],
+) -> Result<ObjectReference<'a, N>, RuntimeError> {
+	let [arr_ref, rest @ ..] = xs else {
+		return Err(RuntimeError::BrokenLambda {
+			msg: "lambda must have an argument array",
+		});
+	};
+	let LispObject::Array(args) = arr_ref.get(env) else {
+		return Err(RuntimeError::BrokenLambda {
+			msg: "lambda must have an argument array",
+		});
+	};
+
+	let params = parse::parse_lambda_args(
+		args.iter()
+			.map(|arg_ref| match arg_ref.get(env) {
+				LispObject::Atom(name) => Ok((name.clone(), None)),
+				LispObject::Pair(name_ref, rest_ref)
+					if let LispObject::Atom(name) = name_ref.get(env)
+						&& let LispObject::Pair(ty_ref, nil_ref) = rest_ref.get(env)
+						&& let LispObject::Atom(type_name) = ty_ref.get(env)
+						&& let LispObject::Atom("nil") = nil_ref.get(env) =>
+				{
+					let ty = crate::parse::parse_type(type_name);
+					Ok((name.clone(), Some(ty)))
+				}
+				_ => Err(RuntimeError::BrokenLambda {
+					msg: "Non-argument in argument position",
+				}),
+			})
+			.collect::<Result<SmallVec<_>, _>>()?,
+	)
+	.map_err(|msg| RuntimeError::BrokenLambda { msg })?;
+
+	let (ret_ty, body) = match rest {
+		[arrow, type_ref, body @ ..] if let LispObject::Atom("->" | "→") = arrow.get(env) => {
+			let LispObject::Atom(type_name) = type_ref.get(env) else {
+				return Err(RuntimeError::BrokenLambda {
+					msg: "lambda return type expected after ->",
+				});
+			};
+			let ty = crate::parse::parse_type(type_name);
+			(Some(ty), body.to_vec())
+		}
+		[arrow, ..] if let LispObject::Atom("->" | "→") = arrow.get(env) => {
+			return Err(RuntimeError::BrokenLambda {
+				msg: "lambda return type expected after ->",
+			});
+		}
+		body => (None, body.to_vec()),
+	};
+	Ok(env.create_object(LispObject::Lambda {
+		params,
+		ret_ty,
+		body,
+	}))
 }
