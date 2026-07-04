@@ -467,9 +467,8 @@ pub(crate) mod runtime_object {
 		) -> Result<LispObject<'a, N>, RuntimeError>,
 	>;
 
-	type BuiltinMonadicFn<'a, const N: usize> = Rc<
-		dyn Fn(&mut Env<'a, N>, LispObject<'a, N>) -> Result<LispObject<'a, N>, RuntimeError>,
-	>;
+	type BuiltinMonadicFn<'a, const N: usize> =
+		Rc<dyn Fn(&mut Env<'a, N>, LispObject<'a, N>) -> Result<LispObject<'a, N>, RuntimeError>>;
 
 	type BuiltinVarargFn<'a, const N: usize> = Rc<
 		dyn Fn(
@@ -835,10 +834,7 @@ pub(crate) mod runtime_object {
 		fn push_builtin_monadic(
 			&mut self,
 			name: &str,
-			f: impl Fn(
-				&mut Env<'a, N>,
-				LispObject<'a, N>,
-			) -> Result<LispObject<'a, N>, RuntimeError>
+			f: impl Fn(&mut Env<'a, N>, LispObject<'a, N>) -> Result<LispObject<'a, N>, RuntimeError>
 			+ 'static,
 		) {
 			let fn_ref = self.create_object(LispObject::BuiltinMonadic(Rc::new(f)));

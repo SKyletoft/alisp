@@ -1,9 +1,4 @@
-use smallvec::SmallVec;
-
-use crate::{
-	lisp_object::{Env, LispObject, LispType, ObjectReference, SmallString},
-	parse,
-};
+use crate::lisp_object::{Env, LispObject, LispType, ObjectReference, SmallString};
 
 const RECURSION_LIMIT: usize = 50;
 
