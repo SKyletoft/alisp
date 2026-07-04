@@ -140,9 +140,9 @@ pub fn eval_inner<'a>(
 				}
 				LispObject::BuiltinMonadic(f) => {
 					let arg_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
-					let evalled = eval_inner(arg_ref, env)?;
+					let evalled = eval_inner(env, arg_ref)?;
 					let arg = env.get(evalled).clone();
-					f(arg, env)?
+					f(env, arg)?
 				}
 				_ => {
 					return Err(RuntimeError::TypeError {
