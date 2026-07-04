@@ -1173,6 +1173,18 @@ fn cant_access_out_of_scope_vars() {
 }
 
 #[test]
+fn macros_have_no_scope() {
+	let code = r#"
+		(set 'f (macro [x] z))
+		(set 'g (lambda [x] (set 'z 5) (f x)))
+		(g 3)
+	"#;
+	let res = eval(code);
+	let expected = int(5);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
 fn can_access_captures() {
 	let code = r#"
 		(set 'g (lambda [] (set 'z 5) (lambda [] z)))
@@ -1180,5 +1192,54 @@ fn can_access_captures() {
 	"#;
 	let res = eval(code);
 	let expected = int(5);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macros_dont_capture() {
+	let code = r#"
+		(set 'g (lambda [] (set 'z 5) (macro [] z)))
+		((g))
+	"#;
+	let res = eval(code);
+	let expected = Err(RuntimeError::UndefinedVariable("z".into()));
+	assert_eq!(res, expected);
+}
+
+#[test]
+fn functions_do_evaluate_args() {
+	let code = r#"
+		(set 'x 0)
+		(defun f [g]
+			(set 'a x)
+			g
+			(set 'b x)
+			g
+			(set 'c x)
+			[a b c]
+		)
+		(f ((lambda [] (set 'x (+ x 1)))))
+	"#;
+	let res = eval(code);
+	let expected = array([int(1), int(1), int(1)]);
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn macros_dont_evaluate_args() {
+	let code = r#"
+		(set 'x 0)
+		(defun f [g]
+			(set 'a x)
+			g
+			(set 'b x)
+			g
+			(set 'c x)
+			[a b c]
+		)
+		(f ((macro [] (set 'x (+ x 1)))))
+	"#;
+	let res = eval(code);
+	let expected = array([int(0), int(1), int(2)]);
 	assert_eq!(res, Ok(expected));
 }
