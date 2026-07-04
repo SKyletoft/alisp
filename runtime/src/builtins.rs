@@ -4,9 +4,9 @@ use crate::{
 };
 
 pub fn set<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	id: LispObject<'a, N>,
 	val: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	if let LispObject::Quote(obj_ref) = id
 		&& let LispObject::Atom(ident) = obj_ref.get(env)
@@ -20,9 +20,9 @@ pub fn set<'a, const N: usize>(
 }
 
 pub fn add<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => {
@@ -39,9 +39,9 @@ pub fn add<'a, const N: usize>(
 }
 
 pub fn mul<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => {
@@ -58,9 +58,9 @@ pub fn mul<'a, const N: usize>(
 }
 
 pub fn sub<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => {
@@ -77,9 +77,9 @@ pub fn sub<'a, const N: usize>(
 }
 
 pub fn div<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => {
@@ -97,9 +97,9 @@ pub fn div<'a, const N: usize>(
 }
 
 pub fn r#mod<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Integer(x), LispObject::Integer(y)) if y != 0 => {
@@ -114,9 +114,9 @@ pub fn r#mod<'a, const N: usize>(
 }
 
 pub fn eq<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object((x == y).into())),
@@ -129,9 +129,9 @@ pub fn eq<'a, const N: usize>(
 }
 
 pub fn lt<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object((x < y).into())),
@@ -144,9 +144,9 @@ pub fn lt<'a, const N: usize>(
 }
 
 pub fn gt<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object((x > y).into())),
@@ -159,9 +159,9 @@ pub fn gt<'a, const N: usize>(
 }
 
 pub fn le<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object((x <= y).into())),
@@ -174,9 +174,9 @@ pub fn le<'a, const N: usize>(
 }
 
 pub fn ge<'a, const N: usize>(
+	env: &mut Env<'a, N>,
 	l: LispObject<'a, N>,
 	r: LispObject<'a, N>,
-	env: &mut Env<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	match (l, r) {
 		(LispObject::Float(x), LispObject::Float(y)) => Ok(env.create_object((x >= y).into())),
@@ -189,17 +189,17 @@ pub fn ge<'a, const N: usize>(
 }
 
 pub fn print<'a, const N: usize>(
-	arg: LispObject<'a, N>,
 	env: &mut Env<'a, N>,
+	arg: LispObject<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
-	print!("{}", lisp_to_string(&arg, env));
+	print!("{}", lisp_to_string(env, &arg));
 	Ok(env.create_object(LispObject::Atom("nil".into())))
 }
 
 pub fn println<'a, const N: usize>(
-	arg: LispObject<'a, N>,
 	env: &mut Env<'a, N>,
+	arg: LispObject<'a, N>,
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
-	println!("{}", lisp_to_string(&arg, env));
+	println!("{}", lisp_to_string(env, &arg));
 	Ok(env.create_object(LispObject::Atom("nil".into())))
 }

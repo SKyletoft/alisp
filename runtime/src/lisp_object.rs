@@ -461,14 +461,17 @@ pub(crate) mod runtime_object {
 
 	type BuiltinDyadicFn<'a, const N: usize> = Rc<
 		dyn Fn(
-			LispObject<'a, N>,
-			LispObject<'a, N>,
 			&mut Env<'a, N>,
+			LispObject<'a, N>,
+			LispObject<'a, N>,
 		) -> Result<ObjectReference<'a, N>, RuntimeError>,
 	>;
 
 	type BuiltinMonadicFn<'a, const N: usize> = Rc<
-		dyn Fn(LispObject<'a, N>, &mut Env<'a, N>) -> Result<ObjectReference<'a, N>, RuntimeError>,
+		dyn Fn(
+			&mut Env<'a, N>,
+			LispObject<'a, N>,
+		) -> Result<ObjectReference<'a, N>, RuntimeError>,
 	>;
 
 	#[derive(Clone)]
@@ -805,9 +808,9 @@ pub(crate) mod runtime_object {
 			&mut self,
 			name: &str,
 			f: impl Fn(
-				LispObject<'a, N>,
-				LispObject<'a, N>,
 				&mut Env<'a, N>,
+				LispObject<'a, N>,
+				LispObject<'a, N>,
 			) -> Result<ObjectReference<'a, N>, RuntimeError>
 			+ 'static,
 		) {
@@ -819,8 +822,8 @@ pub(crate) mod runtime_object {
 			&mut self,
 			name: &str,
 			f: impl Fn(
-				LispObject<'a, N>,
 				&mut Env<'a, N>,
+				LispObject<'a, N>,
 			) -> Result<ObjectReference<'a, N>, RuntimeError>
 			+ 'static,
 		) {
@@ -907,8 +910,8 @@ pub(crate) mod runtime_object {
 	}
 
 	pub(crate) fn lisp_to_string<'a, const N: usize>(
-		obj: &LispObject<'a, N>,
 		env: &Env<'a, N>,
+		obj: &LispObject<'a, N>,
 	) -> String {
 		format!("{}", LispDisplay(obj, env))
 	}
@@ -931,15 +934,15 @@ fn write_array<T>(
 	write!(f, "]")
 }
 
-pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> LispParseTree {
+pub fn lisp_object_to_parse_tree<'a>(env: &Env<'a>, obj: &LispObject<'a>) -> LispParseTree {
 	match obj {
 		LispObject::Atom(s) => LispParseTree::Atom(s.clone()),
 		LispObject::Integer(i) => LispParseTree::Integer(*i),
 		LispObject::Float(f) => LispParseTree::Float(*f),
 		LispObject::String(s) => LispParseTree::String(s.clone()),
 		LispObject::Pair(car, cdr) => {
-			let car = lisp_object_to_parse_tree(env.get(*car), env);
-			let cdr = lisp_object_to_parse_tree(env.get(*cdr), env);
+			let car = lisp_object_to_parse_tree(env, env.get(*car));
+			let cdr = lisp_object_to_parse_tree(env, env.get(*cdr));
 			LispParseTree::Pair(Box::new(car), Box::new(cdr))
 		}
 		LispObject::Lambda {
@@ -949,7 +952,7 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 		} => {
 			let body: Vec<LispParseTree> = body
 				.iter()
-				.map(|e| lisp_object_to_parse_tree(env.get(*e), env))
+				.map(|e| lisp_object_to_parse_tree(env, env.get(*e)))
 				.collect();
 			let args: Vec<LispParseTree> = params
 				.clone()
@@ -977,18 +980,18 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 			LispParseTree::Atom("builtin".into())
 		}
 		LispObject::Quote(inner) => {
-			LispParseTree::Quote(Box::new(lisp_object_to_parse_tree(env.get(*inner), env)))
+			LispParseTree::Quote(Box::new(lisp_object_to_parse_tree(env, env.get(*inner))))
 		}
 		LispObject::Quasiquote(inner) => {
-			LispParseTree::Quasiquote(Box::new(lisp_object_to_parse_tree(env.get(*inner), env)))
+			LispParseTree::Quasiquote(Box::new(lisp_object_to_parse_tree(env, env.get(*inner))))
 		}
 		LispObject::Unquote(inner) => {
-			LispParseTree::Unquote(Box::new(lisp_object_to_parse_tree(env.get(*inner), env)))
+			LispParseTree::Unquote(Box::new(lisp_object_to_parse_tree(env, env.get(*inner))))
 		}
 		LispObject::Array(arr) => {
 			let arr: Vec<LispParseTree> = arr
 				.iter()
-				.map(|e| lisp_object_to_parse_tree(env.get(*e), env))
+				.map(|e| lisp_object_to_parse_tree(env, env.get(*e)))
 				.collect();
 			LispParseTree::Array(arr.into_boxed_slice())
 		}

@@ -8,9 +8,9 @@ fn run_line(code: &str, env: &mut Env) {
 	let parsed = parse::parse_many(code).unwrap();
 	let obj = parsed.into_iter().fold(env.nil(), |_, node| {
 		let obj = ObjectReference::from_parse_object(node, env);
-		eval::eval_top(obj, env).unwrap()
+		eval::eval_top(env, obj).unwrap()
 	});
-	let res = lisp_object::lisp_object_to_parse_tree(obj.get(env), env);
+	let res = lisp_object::lisp_object_to_parse_tree(env, obj.get(env));
 	println!("{res}")
 }
 

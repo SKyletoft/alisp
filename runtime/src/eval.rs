@@ -49,20 +49,20 @@ fn type_guard(expected: &Option<LispType>, actual: &Option<LispType>) -> Result<
 }
 
 pub fn eval_top<'a>(
-	expr: ObjectReference<'a>,
 	env: &mut Env<'a>,
+	expr: ObjectReference<'a>,
 ) -> Result<ObjectReference<'a>, RuntimeError> {
 	let res = match env.get(expr) {
 		LispObject::Quasiquote(inner) => expand_once(env, *inner)?,
 		LispObject::Quote(inner) => *inner,
-		_ => eval_inner(expr, env)?,
+		_ => eval_inner(env, expr)?,
 	};
 	Ok(res)
 }
 
 pub fn eval_inner<'a>(
-	expr: ObjectReference<'a>,
 	env: &mut Env<'a>,
+	expr: ObjectReference<'a>,
 ) -> Result<ObjectReference<'a>, RuntimeError> {
 	let res = match env.get(expr) {
 		LispObject::Pair(f, xs) if let LispObject::Atom("lambda") = f.get(env) => {
@@ -73,7 +73,7 @@ pub fn eval_inner<'a>(
 		}
 		LispObject::Pair(f, x) => {
 			let mut args_iter = *x;
-			let function = eval_inner(*f, env)?.get(env).clone();
+			let function = eval_inner(env, *f)?.get(env).clone();
 			match function {
 				LispObject::Lambda {
 					params,
@@ -86,7 +86,7 @@ pub fn eval_inner<'a>(
 					let mut stack_frame = Vec::new();
 					for (param_name, param_type) in params.iter() {
 						let arg = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
-						let evalled_arg = eval_top(arg, env)?;
+						let evalled_arg = eval_top(env, arg)?;
 						type_guard(param_type, &Some(evalled_arg.get(env).type_of()))?;
 						stack_frame.push((param_name.clone(), evalled_arg));
 					}
@@ -96,7 +96,7 @@ pub fn eval_inner<'a>(
 					}
 					let result = body
 						.into_iter()
-						.map(|e| eval_top(e, env))
+						.map(|e| eval_top(env, e))
 						.last()
 						.unwrap_or(Ok(expr))?;
 					type_guard(&ret_ty, &Some(result.get(env).type_of()))?;
@@ -123,20 +123,20 @@ pub fn eval_inner<'a>(
 
 					expanded
 						.into_iter()
-						.map(|b| eval_top(b, env))
+						.map(|b| eval_top(env, b))
 						.last()
 						.unwrap_or(Ok(expr))?
 				}
 				LispObject::BuiltinDyadic(f) => {
 					let l_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
-					let l_evalled = eval_inner(l_ref, env)?;
+					let l_evalled = eval_inner(env, l_ref)?;
 					let l = env.get(l_evalled).clone();
 
 					let r_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
-					let r_evalled = eval_inner(r_ref, env)?;
+					let r_evalled = eval_inner(env, r_ref)?;
 					let r = env.get(r_evalled).clone();
 
-					f(l, r, env)?
+					f(env, l, r)?
 				}
 				LispObject::BuiltinMonadic(f) => {
 					let arg_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
@@ -219,7 +219,7 @@ fn expand_once<'a>(
 			}
 		}
 
-		LispObject::Unquote(expr) => eval_inner(expr, env)?,
+		LispObject::Unquote(expr) => eval_inner(env, expr)?,
 
 		LispObject::BuiltinDyadic(_)
 		| LispObject::BuiltinMonadic(_)

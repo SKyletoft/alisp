@@ -18,9 +18,9 @@ fn eval(code: &str) -> Result<LispParseTree, RuntimeError> {
 	let parsed = parse::parse_many(code).unwrap();
 	let res = parsed.into_iter().try_fold(env.nil(), |_, node| {
 		let obj = ObjectReference::from_parse_object(node, &mut env);
-		eval::eval_top(obj, &mut env)
+		eval::eval_top(&mut env, obj)
 	})?;
-	let printable = crate::lisp_object::lisp_object_to_parse_tree(env.get(res), &env);
+	let printable = crate::lisp_object::lisp_object_to_parse_tree(&env, env.get(res));
 	Ok(printable)
 }
 
@@ -28,7 +28,7 @@ fn eval_to_obj(code: &str) -> (LispObject<'static>, Env<'static, 0>) {
 	let mut env = Env::wait_for_new();
 	let parsed = parse::parse(code).unwrap();
 	let obj = ObjectReference::from_parse_object(parsed, &mut env);
-	let res = eval::eval_top(obj, &mut env).unwrap();
+	let res = eval::eval_top(&mut env, obj).unwrap();
 	let result = env.get(res).clone();
 	(result, env)
 }
