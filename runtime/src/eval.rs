@@ -77,17 +77,57 @@ pub fn eval_inner<'a>(
 					if env.stack.len() > RECURSION_LIMIT {
 						return Err(RuntimeError::StackOverflow);
 					}
-					let mut stack_frame = Vec::new();
-					for (param_name, param_type) in params.iter() {
-						let arg = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
-						let evalled_arg = eval_top(env, arg)?;
-						type_guard(param_type, &Some(evalled_arg.get(env).type_of()))?;
-						stack_frame.push((param_name.clone(), evalled_arg));
-					}
+					let stack_frame = {
+						let mut evalled = Vec::new();
+						while let Some(arg) = args_iter.next(env) {
+							evalled.push(eval_top(env, arg)?);
+						}
+						if evalled.len() < params.pre.len() + params.post.len() {
+							return Err(RuntimeError::NoCurrying);
+						}
+						if evalled.len() != params.pre.len() + params.post.len()
+							&& params.rest.is_none()
+						{
+							return Err(RuntimeError::TooManyArguments);
+						}
+						let mut out = Vec::new();
+
+						for ((param_name, param_type), evalled_arg) in params
+							.pre
+							.iter()
+							.zip(evalled[..params.pre.len()].iter().copied())
+						{
+							type_guard(param_type, &Some(evalled_arg.get(env).type_of()))?;
+							out.push((param_name.clone(), evalled_arg));
+						}
+
+						if let Some((rest_name, ty)) = &params.rest {
+							let rest_vals = evalled
+								[params.pre.len()..evalled.len() - params.post.len()]
+								.to_vec()
+								.into_boxed_slice();
+							for val in rest_vals.iter() {
+								type_guard(ty, &Some(val.get(env).type_of()))?;
+							}
+							out.push((
+								rest_name.clone(),
+								env.create_object(LispObject::Array(rest_vals)),
+							));
+						}
+
+						for ((param_name, param_type), evalled_arg) in params
+							.post
+							.iter()
+							.zip(evalled[evalled.len() - params.post.len()..].iter().copied())
+						{
+							type_guard(param_type, &Some(evalled_arg.get(env).type_of()))?;
+							out.push((param_name.clone(), evalled_arg));
+						}
+
+						out
+					};
 					env.stack.push(stack_frame);
-					if args_iter.get(env).next(env).is_some() {
-						return Err(RuntimeError::TooManyArguments);
-					}
+
 					let result = body
 						.into_iter()
 						.map(|e| eval_top(env, e))

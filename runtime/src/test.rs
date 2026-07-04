@@ -1152,3 +1152,18 @@ fn bad_variable_args_only_one_typed() {
 		})
 	);
 }
+
+#[test]
+fn call_varargs() {
+	let code = r#"
+		(set 'f (lambda [x (rest i32)& y]
+				(println rest)
+				(+ x y)))
+		(set 'res (f 1 2 3 4))
+		(println res)
+		res
+	"#;
+	let res = eval(code);
+	let expected = int(1 + 4);
+	assert_eq!(res, Ok(expected));
+}
