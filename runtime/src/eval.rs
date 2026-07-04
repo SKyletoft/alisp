@@ -170,17 +170,20 @@ pub fn eval_inner<'a>(
 					let r_evalled = eval_inner(env, r_ref)?;
 					let r = env.get(r_evalled).clone();
 
-					f(env, l, r)?
+					let res = f(env, l, r)?;
+					env.create_object(res)
 				}
 				LispObject::BuiltinMonadic(f) => {
 					let arg_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
 					let evalled = eval_inner(env, arg_ref)?;
 					let arg = env.get(evalled).clone();
-					f(env, arg)?
+					let res = f(env, arg)?;
+					env.create_object(res)
 				}
 				LispObject::BuiltinVararg(f) => {
 					let args: Vec<_> = args_iter.iter(env).collect();
-					f(env, &args)?
+					let res = f(env, &args)?;
+					env.create_object(res)
 				}
 				_ => {
 					return Err(RuntimeError::TypeError {
