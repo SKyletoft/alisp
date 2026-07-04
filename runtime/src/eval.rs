@@ -299,11 +299,13 @@ pub fn expand<'a>(
 
 pub(crate) fn eval_macro_object<'a, const N: usize>(
 	env: &mut Env<'a, N>,
-	mut xs: ObjectReference<'a, N>,
+	xs: &[ObjectReference<'a, N>],
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
-	let arr_ref = xs.next(env).ok_or(RuntimeError::BrokenMacro {
-		msg: "macro must have an argument array",
-	})?;
+	let [arr_ref, body @ ..] = xs else {
+		return Err(RuntimeError::BrokenMacro {
+			msg: "macro must have an argument array",
+		});
+	};
 	let LispObject::Array(args) = arr_ref.get(env) else {
 		return Err(RuntimeError::BrokenMacro {
 			msg: "macro must have an argument array",
@@ -322,29 +324,26 @@ pub(crate) fn eval_macro_object<'a, const N: usize>(
 	)
 	.map_err(|msg| RuntimeError::BrokenMacro { msg })?;
 
-	let Some(body_first) = xs.next(env) else {
+	if let Some(LispObject::Atom("->" | "→")) = body.first().map(|r| r.get(env)) {
 		return Err(RuntimeError::BrokenMacro {
-			msg: "macro must have a body",
+			msg: "macro should not have a return type",
 		});
-	};
-	let body = match body_first.get(env) {
-		LispObject::Atom("->" | "→") => {
-			return Err(RuntimeError::BrokenMacro {
-				msg: "macro should not have a return type",
-			});
-		}
-		_ => std::iter::chain(std::iter::once(body_first), xs.iter(env)).collect(),
-	};
-	Ok(env.create_object(LispObject::Macro { params, body }))
+	}
+	Ok(env.create_object(LispObject::Macro {
+		params,
+		body: body.to_vec(),
+	}))
 }
 
 pub(crate) fn eval_lambda_object<'a, const N: usize>(
 	env: &mut Env<'a, N>,
-	mut xs: ObjectReference<'a, N>,
+	xs: &[ObjectReference<'a, N>],
 ) -> Result<ObjectReference<'a, N>, RuntimeError> {
-	let arr_ref = xs.next(env).ok_or(RuntimeError::BrokenLambda {
-		msg: "lambda must have an argument array",
-	})?;
+	let [arr_ref, rest @ ..] = xs else {
+		return Err(RuntimeError::BrokenLambda {
+			msg: "lambda must have an argument array",
+		});
+	};
 	let LispObject::Array(args) = arr_ref.get(env) else {
 		return Err(RuntimeError::BrokenLambda {
 			msg: "lambda must have an argument array",
@@ -372,29 +371,22 @@ pub(crate) fn eval_lambda_object<'a, const N: usize>(
 	)
 	.map_err(|msg| RuntimeError::BrokenLambda { msg })?;
 
-	let Some(body_first) = xs.next(env) else {
-		return Err(RuntimeError::BrokenLambda {
-			msg: "lambda must have a body",
-		});
-	};
-	let (ret_ty, body) = match body_first.get(env) {
-		LispObject::Atom("->" | "→")
-			if let Some(type_name_ref) = xs.next(env)
-				&& let LispObject::Atom(type_name) = type_name_ref.get(env) =>
-		{
+	let (ret_ty, body) = match rest {
+		[arrow, type_ref, body @ ..] if let LispObject::Atom("->" | "→") = arrow.get(env) => {
+			let LispObject::Atom(type_name) = type_ref.get(env) else {
+				return Err(RuntimeError::BrokenLambda {
+					msg: "lambda return type expected after ->",
+				});
+			};
 			let ty = crate::parse::parse_type(type_name);
-			let body = xs.iter(env).collect();
-			(Some(ty), body)
+			(Some(ty), body.to_vec())
 		}
-		LispObject::Atom("->" | "→") => {
+		[arrow, ..] if let LispObject::Atom("->" | "→") = arrow.get(env) => {
 			return Err(RuntimeError::BrokenLambda {
 				msg: "lambda return type expected after ->",
 			});
 		}
-		_ => {
-			let body = std::iter::chain(std::iter::once(body_first), xs.iter(env)).collect();
-			(None, body)
-		}
+		body => (None, body.to_vec()),
 	};
 	Ok(env.create_object(LispObject::Lambda {
 		params,
