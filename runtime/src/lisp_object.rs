@@ -468,9 +468,13 @@ pub(crate) mod runtime_object {
 	>;
 
 	type BuiltinMonadicFn<'a, const N: usize> = Rc<
+		dyn Fn(&mut Env<'a, N>, LispObject<'a, N>) -> Result<ObjectReference<'a, N>, RuntimeError>,
+	>;
+
+	type BuiltinVarargFn<'a, const N: usize> = Rc<
 		dyn Fn(
 			&mut Env<'a, N>,
-			LispObject<'a, N>,
+			&[ObjectReference<'a, N>],
 		) -> Result<ObjectReference<'a, N>, RuntimeError>,
 	>;
 
@@ -493,6 +497,7 @@ pub(crate) mod runtime_object {
 		},
 		BuiltinDyadic(BuiltinDyadicFn<'a, N>),
 		BuiltinMonadic(BuiltinMonadicFn<'a, N>),
+		BuiltinVararg(BuiltinVarargFn<'a, N>),
 		Quote(ObjectReference<'a, N>),
 		Quasiquote(ObjectReference<'a, N>),
 		Unquote(ObjectReference<'a, N>),
@@ -541,6 +546,7 @@ pub(crate) mod runtime_object {
 
 				(Self::BuiltinDyadic(l), Self::BuiltinDyadic(r)) => Rc::ptr_eq(l, r),
 				(Self::BuiltinMonadic(l), Self::BuiltinMonadic(r)) => Rc::ptr_eq(l, r),
+				(Self::BuiltinVararg(l), Self::BuiltinVararg(r)) => Rc::ptr_eq(l, r),
 
 				_ => false,
 			}
@@ -565,7 +571,8 @@ pub(crate) mod runtime_object {
 				LispObject::Array(..) => LispType::Array,
 				LispObject::Lambda { .. }
 				| LispObject::BuiltinDyadic(_)
-				| LispObject::BuiltinMonadic(_) => LispType::Function,
+				| LispObject::BuiltinMonadic(_)
+				| LispObject::BuiltinVararg(_) => LispType::Function,
 				LispObject::Macro { .. } => LispType::Macro,
 				LispObject::Quote(_) | LispObject::Quasiquote(_) | LispObject::Unquote(_) => {
 					LispType::Code
@@ -613,7 +620,9 @@ pub(crate) mod runtime_object {
 				}
 				write!(f, ")")
 			}
-			LispObject::BuiltinDyadic(_) | LispObject::BuiltinMonadic(_) => {
+			LispObject::BuiltinDyadic(_)
+			| LispObject::BuiltinMonadic(_)
+			| LispObject::BuiltinVararg(_) => {
 				write!(f, "Builtin")
 			}
 			LispObject::Quote(inner) => {
@@ -690,7 +699,9 @@ pub(crate) mod runtime_object {
 			}
 
 			match self {
-				LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
+				LispObject::BuiltinDyadic { .. }
+				| LispObject::BuiltinMonadic { .. }
+				| LispObject::BuiltinVararg { .. } => {
 					write!(f, "Builtin")
 				}
 				LispObject::Atom(s) => write!(f, "{:?}", LispObjectDebug::<N>::Atom(s)),
@@ -828,6 +839,19 @@ pub(crate) mod runtime_object {
 			+ 'static,
 		) {
 			let fn_ref = self.create_object(LispObject::BuiltinMonadic(Rc::new(f)));
+			self.stack.last_mut().unwrap().push((name.into(), fn_ref));
+		}
+
+		fn push_builtin_vararg(
+			&mut self,
+			name: &str,
+			f: impl Fn(
+				&mut Env<'a, N>,
+				&[ObjectReference<'a, N>],
+			) -> Result<ObjectReference<'a, N>, RuntimeError>
+			+ 'static,
+		) {
+			let fn_ref = self.create_object(LispObject::BuiltinVararg(Rc::new(f)));
 			self.stack.last_mut().unwrap().push((name.into(), fn_ref));
 		}
 
@@ -976,9 +1000,9 @@ pub fn lisp_object_to_parse_tree<'a>(env: &Env<'a>, obj: &LispObject<'a>) -> Lis
 			lambda_list.extend(body);
 			LispParseTree::from(lambda_list)
 		}
-		LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
-			LispParseTree::Atom("builtin".into())
-		}
+		LispObject::BuiltinDyadic { .. }
+		| LispObject::BuiltinMonadic { .. }
+		| LispObject::BuiltinVararg { .. } => LispParseTree::Atom("builtin".into()),
 		LispObject::Quote(inner) => {
 			LispParseTree::Quote(Box::new(lisp_object_to_parse_tree(env, env.get(*inner))))
 		}
