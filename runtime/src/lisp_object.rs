@@ -21,18 +21,9 @@ pub(crate) mod parse_tree {
 		Array(Box<[LispParseTree]>),
 		// Map(Box<[(SmallString, LispParseTree)]>),
 		String(String),
-		Lambda {
-			params: LambdaArgs,
-			ret_ty: Option<LispType>,
-			body: Vec<LispParseTree>,
-		},
 		Quote(Box<LispParseTree>),
 		Quasiquote(Box<LispParseTree>),
 		Unquote(Box<LispParseTree>),
-		Macro {
-			params: MacroArgs,
-			body: Vec<LispParseTree>,
-		},
 	}
 
 	#[derive(Debug, Default, PartialEq, Clone)]
@@ -237,25 +228,6 @@ pub(crate) mod parse_tree {
 					LispParseTree::Array(arr) => {
 						crate::lisp_object::write_array(f, arr.iter(), write_elem)
 					}
-					LispParseTree::Lambda {
-						params,
-						ret_ty,
-						body,
-					} => {
-						write!(f, "(λ {params}")?;
-						if let Some(ret_ty) = ret_ty {
-							write!(f, " -> {ret_ty}")?;
-						}
-						write!(f, " ")?;
-						for (i, expr) in body.iter().enumerate() {
-							if i > 0 {
-								write!(f, " ")?;
-							}
-							write_elem(f, expr)?;
-						}
-						write!(f, ")")
-					}
-					LispParseTree::Macro { .. } => todo!(),
 				}
 			}
 
@@ -330,13 +302,11 @@ pub(crate) mod parse_tree {
 				LispParseTree::Integer(_) => LispType::Integer,
 				LispParseTree::Float(_) => LispType::Float,
 				LispParseTree::Pair(..) => LispType::Pair,
-				LispParseTree::Lambda { .. } => LispType::Function,
 				LispParseTree::String(_) => LispType::String,
 				LispParseTree::Array(..) => LispType::Array,
 				LispParseTree::Quote(_)
 				| LispParseTree::Quasiquote(_)
 				| LispParseTree::Unquote(_) => todo!(),
-				LispParseTree::Macro { .. } => LispType::Macro,
 			};
 			Some(res)
 		}
@@ -473,21 +443,6 @@ mod runtime_object {
 					let cdr = Self::from_parse_object(*cdr, env);
 					env.create_object(LispObject::Pair(car, cdr))
 				}
-				LispParseTree::Lambda {
-					params,
-					ret_ty,
-					body,
-				} => {
-					let body: Vec<ObjectReference<'a, N>> = body
-						.into_iter()
-						.map(|e| Self::from_parse_object(e, env))
-						.collect();
-					env.create_object(LispObject::Lambda {
-						params,
-						ret_ty,
-						body,
-					})
-				}
 				LispParseTree::Quote(inner) => {
 					let inner = Self::from_parse_object(*inner, env);
 					env.create_object(LispObject::Quote(inner))
@@ -499,13 +454,6 @@ mod runtime_object {
 				LispParseTree::Quasiquote(inner) => {
 					let inner = Self::from_parse_object(*inner, env);
 					env.create_object(LispObject::Quasiquote(inner))
-				}
-				LispParseTree::Macro { params, body } => {
-					let body = body
-						.into_iter()
-						.map(|l| Self::from_parse_object(l, env))
-						.collect();
-					env.create_object(LispObject::Macro { params, body })
 				}
 			}
 		}
@@ -1163,13 +1111,27 @@ pub fn lisp_object_to_parse_tree<'a>(obj: &LispObject<'a>, env: &Env<'a>) -> Lis
 				.iter()
 				.map(|e| lisp_object_to_parse_tree(env.get(*e), env))
 				.collect();
-			let params = params.clone();
-			let ret_ty = ret_ty.clone();
-			LispParseTree::Lambda {
-				params,
-				ret_ty,
-				body,
+			let args: Vec<LispParseTree> = params
+				.clone()
+				.into_iter()
+				.map(|(name, ty)| match ty {
+					None => LispParseTree::Atom(name),
+					Some(ty) => LispParseTree::from(vec![
+						LispParseTree::Atom(name),
+						LispParseTree::Atom(ty.to_string().into()),
+					]),
+				})
+				.collect();
+			let mut lambda_list: Vec<LispParseTree> = vec![
+				LispParseTree::Atom("lambda".into()),
+				LispParseTree::Array(args.into_boxed_slice()),
+			];
+			if let Some(ret_ty) = ret_ty {
+				lambda_list.push(LispParseTree::Atom("->".into()));
+				lambda_list.push(LispParseTree::Atom(ret_ty.to_string().into()));
 			}
+			lambda_list.extend(body);
+			LispParseTree::from(lambda_list)
 		}
 		LispObject::BuiltinDyadic { .. } | LispObject::BuiltinMonadic { .. } => {
 			LispParseTree::Atom("builtin".into())
