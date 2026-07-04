@@ -2,13 +2,14 @@ use std::assert_matches;
 
 use quickcheck::TestResult;
 use quickcheck_macros::quickcheck;
+use smallstr::SmallString;
 use smallvec::smallvec;
 
 use crate::{
 	eval::{self, RuntimeError},
 	lisp_object::{
-		Env, LambdaArgs, LispParseTree, ObjectReference,
-		parse_tree::{atom, int, list, quasiquote, quote, unquote},
+		Env, LambdaArgs, LispParseTree, LispType, MacroArgs, ObjectReference,
+		parse_tree::{array, atom, float, int, list, quasiquote, quote, unquote},
 	},
 	parse,
 };
@@ -629,4 +630,798 @@ fn shadowing_args_dont_alias_in_call() {
 	let expected = int(11);
 	let res = eval(code);
 	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn neg_numbers() {
+	let code = "(-5 -2.44)";
+	let expected = list([int(-5), float(-2.44)]);
+	let result = parse::parse(code);
+	assert_eq!(result, Ok(expected));
+}
+
+#[quickcheck]
+fn parse_number(n: f64) {
+	if !n.is_normal() {
+		return;
+	}
+	let code = if n.fract() == 0.0 {
+		format!("{n:.1}")
+	} else {
+		format!("{n}")
+	};
+	let result = parse::parse(&code);
+	match result {
+		Ok(LispParseTree::Float(m)) if (n - m).abs() <= f64::EPSILON => {}
+		Ok(LispParseTree::Float(m)) => panic!("{m} is too far from {n}"),
+		_ => panic!("Didn't parse {code:?} as float"),
+	}
+}
+
+#[test]
+fn int_list() {
+	let code = "(1 2 3)";
+	let expected = list([int(1), int(2), int(3)]);
+	let result = parse::parse(code);
+	assert_eq!(result, Ok(expected));
+}
+
+#[test]
+fn quoted_int_list() {
+	let code1 = "'(1 2 3)";
+	let code2 = "' (1 2 3)";
+
+	let expected = quote(list([int(1), int(2), int(3)]));
+
+	let result1 = parse::parse(code1);
+	let result2 = parse::parse(code2);
+
+	assert_eq!(result1, Ok(expected.clone()));
+	assert_eq!(result2, Ok(expected));
+}
+
+#[test]
+fn quasiquoted_int_list() {
+	let code1 = "`(1 2 3)";
+	let code2 = "` (1 2 3)";
+
+	let expected = quasiquote(list([int(1), int(2), int(3)]));
+
+	let result1 = parse::parse(code1);
+	let result2 = parse::parse(code2);
+
+	assert_eq!(result1, Ok(expected.clone()));
+	assert_eq!(result2, Ok(expected));
+}
+
+#[test]
+fn int_array() {
+	let code = "[1 2 3]";
+	let expected = array([int(1), int(2), int(3)]);
+	let result = parse::parse(code);
+	assert_eq!(result, Ok(expected));
+}
+
+#[test]
+fn quoted_int_array() {
+	let code = "'[1 2 3]";
+	let expected = quote(array([int(1), int(2), int(3)]));
+	let result = parse::parse(code);
+	assert_eq!(result, Ok(expected));
+}
+
+#[test]
+fn quasiquoted_int_array() {
+	let code = "`[1 2 3]";
+	let expected = quasiquote(array([int(1), int(2), int(3)]));
+	let result = parse::parse(code);
+	assert_eq!(result, Ok(expected));
+}
+
+#[test]
+fn whitespace_after_number() {
+	let code = "123a";
+	let result = parse::parse(code);
+	assert!(result.is_err());
+}
+
+#[test]
+fn floats() {
+	let code = "123.456";
+	let result = parse::parse(code);
+	let expected = float(code.parse().unwrap());
+	assert_eq!(result, Ok(expected));
+}
+
+#[test]
+fn lambda_no_args() {
+	let result = parse::parse("(lambda [] body)").unwrap();
+	assert_eq!(result, list([atom("lambda"), array([]), atom("body")]));
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn define_lambda_no_args() {
+	let result = parse::parse("(set 'f (lambda [] body))").unwrap();
+	assert_eq!(
+		result,
+		list([
+			atom("set"),
+			quote(atom("f")),
+			list([atom("lambda"), array([]), atom("body")])
+		])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		list([
+			atom("set"),
+			quote(atom("f")),
+			LispParseTree::Lambda {
+				params: LambdaArgs {
+					pre: smallvec![],
+					rest: None,
+					post: smallvec![]
+				},
+				ret_ty: None,
+				body: vec![atom("body")],
+			}
+		])
+	);
+}
+
+#[test]
+fn lambda_in_lambda() {
+	let result = parse::parse("(set 'f (lambda [] (set 'g (lambda [x] x))))").unwrap();
+	assert_eq!(
+		result,
+		list([
+			atom("set"),
+			quote(atom("f")),
+			list([
+				atom("lambda"),
+				array([]),
+				list([
+					atom("set"),
+					quote(atom("g")),
+					list([atom("lambda"), array([atom("x")]), atom("x"),])
+				])
+			])
+		])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		list([
+			atom("set"),
+			quote(atom("f")),
+			LispParseTree::Lambda {
+				params: LambdaArgs {
+					pre: smallvec![],
+					rest: None,
+					post: smallvec![]
+				},
+				ret_ty: None,
+				body: vec![list([
+					atom("set"),
+					quote(atom("g")),
+					LispParseTree::Lambda {
+						params: LambdaArgs {
+							pre: smallvec![("x".into(), None)],
+							rest: None,
+							post: smallvec![]
+						},
+						ret_ty: None,
+						body: vec![atom("x")]
+					}
+				])]
+			}
+		])
+	);
+}
+
+#[test]
+fn lambda_one_arg_no_types() {
+	let result = parse::parse("(lambda [x] body)").unwrap();
+	assert_eq!(
+		result,
+		list([atom("lambda"), array([atom("x")]), atom("body")])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), None)],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn lambda_typed_untyped_args_with_return() {
+	let result = parse::parse("(lambda [(x i32) y] -> bool body)").unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([list([atom("x"), atom("i32")]), atom("y")]),
+			atom("->"),
+			atom("bool"),
+			atom("body")
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), Some(LispType::Integer)), ("y".into(), None),],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: Some(LispType::Named("bool".into())),
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn lambda_one_typed_arg_with_return() {
+	let result = parse::parse("(lambda [(x i32)] -> i32 body)").unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([list([atom("x"), atom("i32")])]),
+			atom("->"),
+			atom("i32"),
+			atom("body")
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), Some(LispType::Integer))],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: Some(LispType::Integer),
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn lambda_untyped_then_typed_args_no_return() {
+	let result = parse::parse("(lambda [x (y i32)] body)").unwrap();
+	assert_eq!(
+		result,
+		list([
+			atom("lambda"),
+			array([atom("x"), list([atom("y"), atom("i32")])]),
+			atom("body")
+		])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn lambda_untyped_then_typed_args_with_return() {
+	let result = parse::parse("(lambda [x (y i32)] -> i32 body)").unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([atom("x"), list([atom("y"), atom("i32")])]),
+			atom("->"),
+			atom("i32"),
+			atom("body")
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), None), ("y".into(), Some(LispType::Integer)),],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: Some(LispType::Integer),
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn lambda_one_arg_no_type_with_return() {
+	let result = parse::parse("(lambda [x] -> i32 body)").unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([atom("x")]),
+			atom("->"),
+			atom("i32"),
+			atom("body")
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), None)],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: Some(LispType::Integer),
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn lambda_one_typed_arg_no_return() {
+	let result = parse::parse("(lambda [(x i32)] body)").unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([list([atom("x"), atom("i32")])]),
+			atom("body")
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), Some(LispType::Integer))],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn lambda_two_untyped_args_no_return() {
+	let result = parse::parse("(lambda [x y] body)").unwrap();
+	assert_eq!(
+		result,
+		list([atom("lambda"), array([atom("x"), atom("y")]), atom("body")])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), None), ("y".into(), None)],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn lambda_two_statements() {
+	let result = parse::parse("(lambda [x] (println x) (+ x 1))").unwrap();
+	assert_eq!(
+		result,
+		list([
+			atom("lambda"),
+			array([atom("x")]),
+			list([atom("println"), atom("x")]),
+			list([atom("+"), atom("x"), int(1)])
+		])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), None)],
+				rest: None,
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![
+				list([atom("println"), atom("x")]),
+				list([atom("+"), atom("x"), int(1)])
+			],
+		}
+	);
+}
+
+#[test]
+fn string() {
+	let code = "\"hi\"";
+	let expected = LispParseTree::String("hi".into());
+	let result = parse::parse(code);
+	assert_eq!(Ok(expected), result);
+}
+
+#[quickcheck]
+fn any_string(s: [u8; 12]) {
+	let mut buffer = SmallString::<[u8; 26]>::new();
+	let mut expected = String::new();
+	buffer.push('"');
+	for c in s.into_iter() {
+		match c {
+			b'"' => {
+				buffer.push('\\');
+				buffer.push('"');
+				expected.push('"');
+			}
+			b'\\' => {
+				buffer.push('\\');
+				buffer.push('\\');
+				expected.push('\\');
+			}
+			b'\n' => {
+				buffer.push('\\');
+				buffer.push('n');
+				expected.push('\n');
+			}
+			b'\r' => {
+				buffer.push('\\');
+				buffer.push('r');
+				expected.push('\r');
+			}
+			b'\t' => {
+				buffer.push('\\');
+				buffer.push('t');
+				expected.push('\t');
+			}
+			c if c.is_ascii_graphic() || c == b' ' => {
+				buffer.push(c as char);
+				expected.push(c as char);
+			}
+			c if (0xA0..=0xFF).contains(&c) => {
+				buffer.push(char::from(c));
+				expected.push(char::from(c));
+			}
+			c => {
+				buffer.push('\\');
+				buffer.push('x');
+				buffer.push(char::from_digit((c >> 4) as u32, 16).expect("hex digit"));
+				buffer.push(char::from_digit((c & 0x0F) as u32, 16).expect("hex digit"));
+				expected.push(c as char);
+			}
+		}
+	}
+	buffer.push('"');
+	let result = parse::parse(&buffer);
+	assert_eq!(Ok(LispParseTree::String(expected)), result);
+}
+
+#[test]
+fn macro_no_args() {
+	let result = parse::parse("(macro [] body)").unwrap();
+	assert_eq!(result, list([atom("macro"), array([]), atom("body")]));
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Macro {
+			params: MacroArgs {
+				pre: smallvec![],
+				rest: None,
+				post: smallvec![]
+			},
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn test_unquote() {
+	let code1 = ",x";
+	let res1 = parse::parse(code1);
+
+	let code2 = ", x";
+	let res2 = parse::parse(code2);
+
+	let expected = LispParseTree::Unquote(Box::new(LispParseTree::Atom("x".into())));
+
+	assert_eq!(res1, Ok(expected.clone()));
+	assert_eq!(res2, Ok(expected));
+}
+
+#[test]
+fn variable_args() {
+	let code = "(lambda [rest&] body)";
+	let result = parse::parse(code).unwrap();
+	assert_eq!(
+		result,
+		list([
+			atom("lambda"),
+			array([atom("rest"), atom("&")]),
+			atom("body")
+		])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![],
+				rest: Some(("rest".into(), None)),
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn variable_args_typed() {
+	let code = "(lambda [(rest i32)&] body)";
+	let result = parse::parse(code).unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([list([atom("rest"), atom("i32")]), atom("&")]),
+			atom("body"),
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![],
+				rest: Some(("rest".into(), Some(LispType::Integer))),
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn variable_args_head() {
+	let code = "(lambda [x rest&] body)";
+	let result = parse::parse(code).unwrap();
+	assert_eq!(
+		result,
+		list([
+			atom("lambda"),
+			array([atom("x"), atom("rest"), atom("&")]),
+			atom("body")
+		])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), None)],
+				rest: Some(("rest".into(), None)),
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn variable_args_head_typed() {
+	let code = "(lambda [(x f64) (rest i32)&] body)";
+	let result = parse::parse(code).unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([
+				list([atom("x"), atom("f64")]),
+				list([atom("rest"), atom("i32")]),
+				atom("&"),
+			]),
+			atom("body"),
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("x".into(), Some(LispType::Float))],
+				rest: Some(("rest".into(), Some(LispType::Integer))),
+				post: smallvec![]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn variable_args_tail() {
+	let code = "(lambda [rest& tail] body)";
+	let result = parse::parse(code).unwrap();
+	assert_eq!(
+		result,
+		list([
+			atom("lambda"),
+			array([atom("rest"), atom("&"), atom("tail")]),
+			atom("body")
+		])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![],
+				rest: Some(("rest".into(), None)),
+				post: smallvec![("tail".into(), None)]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn variable_args_tail_typed() {
+	let code = "(lambda [(rest atom)& (tail i32)] body)";
+	let result = parse::parse(code).unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([
+				list([atom("rest"), atom("atom")]),
+				atom("&"),
+				list([atom("tail"), atom("i32")]),
+			]),
+			atom("body"),
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![],
+				rest: Some(("rest".into(), Some(LispType::Atom))),
+				post: smallvec![("tail".into(), Some(LispType::Integer))]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn variable_args_head_tail() {
+	let code = "(lambda [first rest& last] body)";
+	let result = parse::parse(code).unwrap();
+	assert_eq!(
+		result,
+		list([
+			atom("lambda"),
+			array([atom("first"), atom("rest"), atom("&"), atom("last")]),
+			atom("body"),
+		])
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("first".into(), None)],
+				rest: Some(("rest".into(), None)),
+				post: smallvec![("last".into(), None)]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn variable_args_head_tail_typed() {
+	let code = "(lambda [(first i32) (rest i32)& (last i32)] body)";
+	let result = parse::parse(code).unwrap();
+	assert_eq!(
+		result,
+		vec![
+			atom("lambda"),
+			array([
+				list([atom("first"), atom("i32")]),
+				list([atom("rest"), atom("i32")]),
+				atom("&"),
+				list([atom("last"), atom("i32")]),
+			]),
+			atom("body"),
+		]
+		.into()
+	);
+	let with_lambdas = parse::pre_evaluate_lambdas(result).unwrap();
+	assert_eq!(
+		with_lambdas,
+		LispParseTree::Lambda {
+			params: LambdaArgs {
+				pre: smallvec![("first".into(), Some(LispType::Integer))],
+				rest: Some(("rest".into(), Some(LispType::Integer))),
+				post: smallvec![("last".into(), Some(LispType::Integer))]
+			},
+			ret_ty: None,
+			body: vec![atom("body")],
+		}
+	);
+}
+
+#[test]
+fn bad_variable_args_only_one() {
+	let code = "(lambda [x& y&] body)";
+	let result = eval(code);
+	assert_eq!(
+		result,
+		Err(RuntimeError::BrokenLambda {
+			msg: "Lambda args may not contain multiple var-args sections"
+		})
+	);
+}
+
+#[test]
+fn bad_variable_args_only_one_typed() {
+	let code = "(lambda [(x atom)& (y i32)&] body)";
+	let result = eval(code);
+	assert_eq!(
+		result,
+		Err(RuntimeError::BrokenLambda {
+			msg: "Lambda args may not contain multiple var-args sections"
+		})
+	);
 }
