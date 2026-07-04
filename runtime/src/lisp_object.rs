@@ -802,6 +802,20 @@ pub(crate) mod runtime_object {
 				ret.push_builtin_dyadic(">=", builtins::ge);
 				ret.push_builtin_monadic("print", builtins::print);
 				ret.push_builtin_monadic("println", builtins::println);
+				ret.push_builtin_vararg("lambda", |env, args| {
+					let mut list = env.nil();
+					for &arg in args.iter().rev() {
+						list = env.create_object(LispObject::Pair(arg, list));
+					}
+					crate::eval::eval_lambda_object(env, list)
+				});
+				ret.push_builtin_vararg("macro", |env, args| {
+					let mut list = env.nil();
+					for &arg in args.iter().rev() {
+						list = env.create_object(LispObject::Pair(arg, list));
+					}
+					crate::eval::eval_macro_object(env, list)
+				});
 				Ok(ret)
 			}
 		}

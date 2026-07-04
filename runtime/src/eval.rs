@@ -65,12 +65,6 @@ pub fn eval_inner<'a>(
 	expr: ObjectReference<'a>,
 ) -> Result<ObjectReference<'a>, RuntimeError> {
 	let res = match env.get(expr) {
-		LispObject::Pair(f, xs) if let LispObject::Atom("lambda") = f.get(env) => {
-			eval_lambda_object(env, *xs)?
-		}
-		LispObject::Pair(f, xs) if let LispObject::Atom("macro") = f.get(env) => {
-			eval_macro_object(env, *xs)?
-		}
 		LispObject::Pair(f, x) => {
 			let mut args_iter = *x;
 			let function = eval_inner(env, *f)?.get(env).clone();
