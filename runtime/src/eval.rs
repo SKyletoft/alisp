@@ -258,10 +258,10 @@ pub fn expand<'a>(
 	Ok(res)
 }
 
-fn eval_macro_object<'a>(
-	env: &mut Env<'a>,
-	mut xs: ObjectReference<'a>,
-) -> Result<ObjectReference<'a>, RuntimeError> {
+pub(crate) fn eval_macro_object<'a, const N: usize>(
+	env: &mut Env<'a, N>,
+	mut xs: ObjectReference<'a, N>,
+) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	let arr_ref = xs.next(env).ok_or(RuntimeError::BrokenMacro {
 		msg: "macro must have an argument array",
 	})?;
@@ -299,10 +299,10 @@ fn eval_macro_object<'a>(
 	Ok(env.create_object(LispObject::Macro { params, body }))
 }
 
-fn eval_lambda_object<'a>(
-	env: &mut Env<'a>,
-	mut xs: ObjectReference<'a>,
-) -> Result<ObjectReference<'a>, RuntimeError> {
+pub(crate) fn eval_lambda_object<'a, const N: usize>(
+	env: &mut Env<'a, N>,
+	mut xs: ObjectReference<'a, N>,
+) -> Result<ObjectReference<'a, N>, RuntimeError> {
 	let arr_ref = xs.next(env).ok_or(RuntimeError::BrokenLambda {
 		msg: "lambda must have an argument array",
 	})?;
