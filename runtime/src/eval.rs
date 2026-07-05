@@ -189,6 +189,7 @@ pub fn eval_inner<'a>(
 			}
 		}
 		LispObject::Atom(id) => env.get_stack_var(id)?,
+		LispObject::Quasiquote(inner) => expand_once(env, *inner)?,
 		_ => expr,
 	};
 
