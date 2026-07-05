@@ -1237,9 +1237,27 @@ fn macros_dont_evaluate_args() {
 			(set 'c x)
 			[a b c]
 		)
-		(f ((macro [] (set 'x (+ x 1)))))
+		(f ((macro [] `(set 'x (+ x 1)))))
 	"#;
 	let res = eval(code);
 	let expected = array([int(0), int(1), int(2)]);
+	assert_eq!(res, Ok(expected));
+}
+
+fn macros_evaluate_at_lambda_resolve_time() {
+	let code = r#"
+		(set 'x 0)
+		(defun f [g]
+			(set 'a x)
+			g
+			(set 'b x)
+			g
+			(set 'c x)
+			[a b c]
+		)
+		(f ((macro [] (set 'x (+ x 1)))))
+	"#;
+	let res = eval(code);
+	let expected = array([int(3), int(3), int(3)]);
 	assert_eq!(res, Ok(expected));
 }
