@@ -1253,6 +1253,7 @@ fn macros_dont_evaluate_args() {
 	assert_eq!(res, Ok(expected));
 }
 
+#[test]
 fn macros_evaluate_at_lambda_resolve_time() {
 	let code = r#"
 		(set 'x 0)
