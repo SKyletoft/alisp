@@ -391,7 +391,7 @@ pub(crate) mod runtime_object {
 	}
 
 	impl<'a, const N: usize> ObjectReference<'a, N> {
-		pub fn iter<'b>(self, env: &'b Env<'a, N>) -> LispObjectIterator<'a, 'b, N> {
+		pub fn into_iter<'b>(self, env: &'b Env<'a, N>) -> LispObjectIterator<'a, 'b, N> {
 			LispObjectIterator {
 				env,
 				reference: self,
