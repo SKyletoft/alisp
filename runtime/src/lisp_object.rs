@@ -936,7 +936,7 @@ pub(crate) mod runtime_object {
 		}
 	}
 
-	struct LispDisplay<'a, 'b, const N: usize>(&'b LispObject<'a, N>, &'b Env<'a, N>);
+	pub struct LispDisplay<'a, 'b, const N: usize>(pub &'b LispObject<'a, N>, pub &'b Env<'a, N>);
 	impl<'a, 'b, const N: usize> fmt::Display for LispDisplay<'a, 'b, N> {
 		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 			write_lisp_elem(f, self.0, self.1)
