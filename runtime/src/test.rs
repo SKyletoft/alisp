@@ -1219,15 +1219,14 @@ fn macros_dont_capture() {
 fn functions_do_evaluate_args() {
 	let code = r#"
 		(set 'x 0)
-		(defun f [g]
+		(set 'f (lambda [g]
 			(set 'a x)
 			g
 			(set 'b x)
 			g
 			(set 'c x)
-			[a b c]
-		)
-		(f ((lambda [] (set 'x (+ x 1)))))
+			[a b c]))
+		(f ((macro [] (set 'x (+ x 1)))))
 	"#;
 	let res = eval(code);
 	let expected = array([int(1), int(1), int(1)]);
@@ -1238,14 +1237,13 @@ fn functions_do_evaluate_args() {
 fn macros_dont_evaluate_args() {
 	let code = r#"
 		(set 'x 0)
-		(defun f [g]
+		(set 'f (macro [g]
 			(set 'a x)
 			g
 			(set 'b x)
 			g
 			(set 'c x)
-			[a b c]
-		)
+			[a b c]))
 		(f ((macro [] `(set 'x (+ x 1)))))
 	"#;
 	let res = eval(code);
@@ -1257,15 +1255,17 @@ fn macros_dont_evaluate_args() {
 fn macros_evaluate_at_lambda_resolve_time() {
 	let code = r#"
 		(set 'x 0)
-		(defun f [g]
+		(set 'f (lambda [g]
 			(set 'a x)
 			g
 			(set 'b x)
 			g
 			(set 'c x)
-			[a b c]
-		)
-		(f ((macro [] (set 'x (+ x 1)))))
+			[a b c]))
+		(f (macro [] (set 'x (+ x 1))))
+	"#;
+	let res = eval(code);
+	let expected = array([int(2), int(2), int(2)]);
 	assert_eq!(res, Ok(expected));
 }
 
@@ -1277,6 +1277,6 @@ fn setq_many() {
 		(+ x y)
 	"#;
 	let res = eval(code);
-	let expected = array([int(3), int(3), int(3)]);
+	let expected = int(5 + 3);
 	assert_eq!(res, Ok(expected));
 }
