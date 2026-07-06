@@ -175,8 +175,8 @@ pub fn eval_inner<'a>(
 					let res = f(env, arg)?;
 					env.create_object(res)
 				}
-				LispObject::BuiltinVararg(f) => {
 					let args: Vec<_> = args_iter.iter(env).collect();
+				LispObject::BuiltinVarargMacro(f) => {
 					let res = f(env, &args)?;
 					env.create_object(res)
 				}
@@ -270,7 +270,7 @@ fn expand_once<'a>(
 
 		LispObject::BuiltinDyadic(_)
 		| LispObject::BuiltinMonadic(_)
-		| LispObject::BuiltinVararg(_)
+		| LispObject::BuiltinVarargMacro(_)
 		| LispObject::Quote(_)
 		| LispObject::Quasiquote(_)
 		| LispObject::Atom(_)
