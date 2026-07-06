@@ -190,6 +190,16 @@ pub fn eval_inner<'a>(
 		}
 		LispObject::Atom(id) => env.get_stack_var(id)?,
 		LispObject::Quasiquote(inner) => expand_once(env, *inner)?,
+		LispObject::Array(xs) => {
+			let xs = xs
+				.clone()
+				.iter()
+				.map(|&x| eval_inner(env, x))
+				.collect::<Result<Vec<_>, RuntimeError>>()?
+				.into_boxed_slice();
+			let obj = LispObject::Array(xs);
+			env.create_object(obj)
+		}
 		_ => expr,
 	};
 
