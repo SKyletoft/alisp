@@ -812,9 +812,9 @@ pub(crate) mod runtime_object {
 				ret.push_builtin_dyadic(">=", builtins::ge);
 				ret.push_builtin_monadic("print", builtins::print);
 				ret.push_builtin_monadic("println", builtins::println);
-				ret.push_builtin_vararg("lambda", builtins::lambda);
-				ret.push_builtin_vararg("macro", builtins::r#macro);
-				ret.push_builtin_vararg("defun", builtins::defun);
+				ret.push_builtin_vararg_macro("lambda", builtins::lambda);
+				ret.push_builtin_vararg_macro("macro", builtins::r#macro);
+				ret.push_builtin_vararg_macro("defun", builtins::defun);
 				Ok(ret)
 			}
 		}
