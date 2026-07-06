@@ -1266,6 +1266,15 @@ fn macros_evaluate_at_lambda_resolve_time() {
 			[a b c]
 		)
 		(f ((macro [] (set 'x (+ x 1)))))
+	assert_eq!(res, Ok(expected));
+}
+
+#[test]
+fn setq_many() {
+	let code = r#"
+		(setq x 5
+		      y 3)
+		(+ x y)
 	"#;
 	let res = eval(code);
 	let expected = array([int(3), int(3), int(3)]);
