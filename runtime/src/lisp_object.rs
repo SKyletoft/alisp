@@ -815,6 +815,7 @@ pub(crate) mod runtime_object {
 				ret.push_builtin_vararg_macro("lambda", builtins::lambda);
 				ret.push_builtin_vararg_macro("macro", builtins::r#macro);
 				ret.push_builtin_vararg_macro("defun", builtins::defun);
+				ret.push_builtin_vararg_macro("setq", builtins::setq);
 				Ok(ret)
 			}
 		}

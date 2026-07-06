@@ -303,3 +303,33 @@ pub fn defun<'a, const N: usize>(
 	let val = lambda(env, lam)?;
 	set(env, id, val)
 }
+
+pub fn setq<'a, const N: usize>(
+	env: &mut Env<'a, N>,
+	args: &[ObjectReference<'a, N>],
+) -> Result<LispObject<'a, N>, RuntimeError> {
+	let set = env.get_stack_var("set")?;
+	let mut sets = Vec::new();
+
+	for x in args.chunks_exact(2) {
+		let [id, arg] = x else {
+			unsafe { std::hint::unreachable_unchecked() }
+		};
+		let quoted = env.create_object(LispObject::Quote(*id));
+		let set_call = LispObject::list_from_slice(env, &[set, quoted, *arg]);
+		sets.push(env.create_object(set_call));
+	}
+
+	if !args.len().is_multiple_of(2) {
+		let quoted = env.create_object(LispObject::Quote(
+			*args.last().expect("Odd length => can't be empty"),
+		));
+		let nil = env.nil();
+		let set_call = LispObject::list_from_slice(env, &[set, quoted, nil]);
+		sets.push(env.create_object(set_call));
+	}
+
+	let set_list = LispObject::list_from_slice(env, &sets);
+	let set_list_ref = env.create_object(set_list);
+	Ok(LispObject::Quasiquote(set_list_ref))
+}
