@@ -132,30 +132,6 @@ pub fn eval_inner<'a>(
 					env.stack.pop();
 					result
 				}
-				LispObject::Macro { params, body } => {
-					let mut stack_frame = Vec::new();
-					for param_name in params.iter() {
-						let arg = args_iter.next(env).ok_or(RuntimeError::NoCurryingMacro)?;
-						stack_frame.push((param_name.clone(), arg));
-					}
-					if args_iter.next(env).is_some() {
-						return Err(RuntimeError::TooManyArgumentsMacro);
-					}
-
-					env.stack.push(stack_frame);
-					let expanded = body
-						.iter()
-						.copied()
-						.map(|b| expand_once(env, b))
-						.collect::<Result<Vec<_>, _>>()?;
-					env.stack.pop();
-
-					expanded
-						.into_iter()
-						.map(|b| eval_top(env, b))
-						.last()
-						.unwrap_or(Ok(expr))?
-				}
 				LispObject::BuiltinDyadic(f) => {
 					let l_ref = args_iter.next(env).ok_or(RuntimeError::NoCurrying)?;
 					let l_evalled = eval_inner(env, l_ref)?;
@@ -175,10 +151,56 @@ pub fn eval_inner<'a>(
 					let res = f(env, arg)?;
 					env.create_object(res)
 				}
-					let args: Vec<_> = args_iter.iter(env).collect();
+				LispObject::Macro { params, body } => {
+					let mut stack_frame = Vec::new();
+					for param_name in params.iter() {
+						let arg = args_iter.next(env).ok_or(RuntimeError::NoCurryingMacro)?;
+						stack_frame.push((param_name.clone(), arg));
+					}
+					if args_iter.next(env).is_some() {
+						return Err(RuntimeError::TooManyArgumentsMacro);
+					}
+
+					env.stack.push(stack_frame);
+					let expanded = body
+						.iter()
+						.copied()
+						.map(|b| expand_once(env, b))
+						.collect::<Result<Vec<_>, _>>()?;
+					env.stack.pop();
+
+					let res = expanded
+						.into_iter()
+						.map(|b| eval_top(env, b))
+						.last()
+						.unwrap_or(Ok(expr))?;
+
+					let mut expr = eval_inner(env, res)?;
+					let mut ret = expr;
+
+					while let LispObject::Pair(to_eval, next) = expr.get(env) {
+						let to_eval = *to_eval;
+						let next = *next;
+						ret = eval_inner(env, to_eval)?;
+						expr = next;
+					}
+					ret
+				}
 				LispObject::BuiltinVarargMacro(f) => {
+					let args: Vec<_> = args_iter.into_iter(env).collect();
 					let res = f(env, &args)?;
-					env.create_object(res)
+					let res_ref = env.create_object(res);
+
+					let mut expr = eval_inner(env, res_ref)?;
+					let mut ret = expr;
+
+					while let LispObject::Pair(to_eval, next) = expr.get(env) {
+						let to_eval = *to_eval;
+						let next = *next;
+						ret = eval_inner(env, to_eval)?;
+						expr = next;
+					}
+					ret
 				}
 				_ => {
 					return Err(RuntimeError::TypeError {
