@@ -22,9 +22,9 @@ data Obj : Set where
   int : ℕ → Obj
   nil : Obj
   pair : Ref → Ref → Obj
-  quote : Ref → Obj
-  quasiquote : Ref → Obj
-  unquote : Ref → Obj
+  quote-obj : Ref → Obj
+  quasiquote-obj : Ref → Obj
+  unquote-obj : Ref → Obj
   lambda-obj : List Id → List Ref → Ref → Obj
   macro-obj : List Id → List Ref → Ref → Obj
   builtin-macro : BuiltinMacro → Obj
@@ -118,17 +118,17 @@ data _↦_ : State → State → Set where
 
   eval-quote :
     ∀ {H S r x k} →
-    lookup-heap H r ≡ just (quote x) →
+    lookup-heap H r ≡ just (quote-obj x) →
     ⟨ H , S , eval r , k ⟩ ↦ ⟨ H , S , value x , k ⟩
 
   eval-quasiquote :
     ∀ {H S r x k} →
-    lookup-heap H r ≡ just (quasiquote x) →
+    lookup-heap H r ≡ just (quasiquote-obj x) →
     ⟨ H , S , eval r , k ⟩ ↦ ⟨ H , S , eval x , qq 0 k ⟩
 
   eval-unquote-outside-qq :
     ∀ {H S r x k} →
-    lookup-heap H r ≡ just (unquote x) →
+    lookup-heap H r ≡ just (unquote-obj x) →
     ⟨ H , S , eval r , k ⟩ ↦ ⟨ H , S , error invalid-unquote , k ⟩
 
   qq-finish :
@@ -137,12 +137,12 @@ data _↦_ : State → State → Set where
 
   qq-descend :
     ∀ {H S r x d k} →
-    lookup-heap H r ≡ just (quasiquote x) →
+    lookup-heap H r ≡ just (quasiquote-obj x) →
     ⟨ H , S , eval r , qq d k ⟩ ↦ ⟨ H , S , eval x , qq (suc d) k ⟩
 
   qq-unquote :
     ∀ {H S r x d k} →
-    lookup-heap H r ≡ just (unquote x) →
+    lookup-heap H r ≡ just (unquote-obj x) →
     ⟨ H , S , eval r , qq (suc d) k ⟩ ↦ ⟨ H , S , eval x , qq d k ⟩
 
   call-start :
