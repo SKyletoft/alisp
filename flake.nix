@@ -50,6 +50,7 @@
 					kdePackages.kcachegrind
 
 					rlwrap
+					custom-agda
 				];
 
 				alisp-unwrapped = rustPlatform.buildRustPackage {
@@ -66,6 +67,10 @@
 					cargoLock.lockFile = ./Cargo.lock;
 					doCheck = false;
 				};
+
+				custom-agda = pkgs.agda.withPackages (p: with p; [
+					standard-library
+				]);
 
 				alisp = pkgs.runCommand "alisp-0.0.1" {
 					nativeBuildInputs = [ pkgs.makeWrapper ];
