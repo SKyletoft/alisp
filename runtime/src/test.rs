@@ -1155,6 +1155,33 @@ fn bad_variable_args_only_one_typed() {
 }
 
 #[test]
+fn non_proper_pair() {
+	let code = "(1 . 2)";
+	let result = parse::parse(code);
+	let expected = LispParseTree::Pair(int(1).into(), int(2).into());
+	assert_eq!(result, Ok(expected));
+}
+
+#[test]
+fn non_proper_list() {
+	let code = "(1 2 3 4 . 5)";
+	let result = parse::parse(code);
+	let expected = LispParseTree::Pair(
+		int(1).into(),
+		LispParseTree::Pair(
+			int(2).into(),
+			LispParseTree::Pair(
+				int(3).into(),
+				LispParseTree::Pair(int(4).into(), int(5).into()).into(),
+			)
+			.into(),
+		)
+		.into(),
+	);
+	assert_eq!(result, Ok(expected));
+}
+
+#[test]
 fn call_varargs() {
 	let code = r#"
 		(set 'f (lambda [x (rest i32)& y]
