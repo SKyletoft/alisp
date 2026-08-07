@@ -6,6 +6,7 @@ open import Agda.Builtin.String
 open import Data.String.Properties using (_≟_)
 open import Agda.Builtin.List
 open import Agda.Builtin.Maybe
+open import Agda.Builtin.Sigma
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; subst)
 open import Relation.Nullary using (yes; no)
 open import Helpers
@@ -46,15 +47,14 @@ insert {n} e (state {f} vals names) =
 replace : {n : Nat} → Expr → State n → Fin n → State n
 replace e (state vals names) i = state (setAt e vals i) names
 
-small-step : {n : Nat} → (State n) × Expr → Maybe (State (suc n) × Ref (suc n))
-small-step (s@(state vals names) , atom x) with find x s
+small-step : {n : Nat} → (State n) × Expr → Maybe (Σ Nat (λ m → State m × Ref m))
+small-step {n} (s@(state vals names) , atom x) with find x s
+... | just r = just (n , (s , r))
 ... | nothing = nothing
-... | just r@(ref i) with insert (lookup r s) s
-...   | s' , _ = just (s' , ref (weakenFin i))
 small-step (s , pair e e₁)   = {!!}
 small-step (s , quasiquot e) = {!!}
 small-step (s , unquot e)    = nothing
-small-step (s , quot e)      = just (insert e s)
-small-step (s , number x)    = just (insert (number x) s)
-small-step (s , lam x x₁)    = just (insert (lam x x₁) s)
-small-step (s , mac x x₁)    = just (insert (mac x x₁) s)
+small-step {n} (s , quot e)      = just (suc n , insert e s)
+small-step {n} (s , number x)    = just (suc n , insert (number x) s)
+small-step {n} (s , lam x x₁)    = just (suc n , insert (lam x x₁) s)
+small-step {n} (s , mac x x₁)    = just (suc n , insert (mac x x₁) s)
