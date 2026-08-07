@@ -1,38 +1,58 @@
-open import Data.Nat
-open import Data.List
-open import Data.String
+open import Agda.Builtin.Bool
+open import Agda.Builtin.Nat
+open import Agda.Builtin.String
+open import Data.String.Properties using (_≟_)
+open import Agda.Builtin.List
+open import Agda.Builtin.Maybe
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; subst)
+open import Relation.Nullary using (yes; no)
+open import Helpers
 
-data Id : Set where
-  ident : String → Id
+data Expr : Set where
+  atom      : String → Expr
+  number    : Nat → Expr
+  pair      : Expr → Expr → Expr
+  quot      : Expr → Expr
+  quasiquot : Expr → Expr
+  unquot    : Expr → Expr
+  lam       : List String → List Expr → Expr
+  mac       : List String → List Expr → Expr
 
-mutual
-  data Stmt : Set where
-    expr : Expr → Stmt
-    set  : Id → Expr → Stmt
-    decl : Id → Stmt
+data Ref (n : Nat) : Set where
+  ref : Fin n → Ref n
 
-  -- Any valid expression in the language
-  data Expr : Set where
-    -- int actually represents both integers (u64) and floats (f64)
-    int   : ℕ → Expr
-    lam   : List Id → List Stmt → Expr → Expr
-    mac   : List Id → List Stmt → Expr → Expr
-    id    : Id → Expr
-    qot   : Expr → Expr
-    unqot : Expr → Expr
-    qqot  : Expr → Expr
-    pair  : Expr → Expr → Expr
+data State (n : Nat) : Set where
+  state : {f : Fin n} →
+          Vec Expr n →
+          Vec String (toNat f) → State n
 
--- Actually evaluated values, the subset of expressions that doesn't contain unevaluated middle steps.
--- Used to make sure order of operations is respected
-data Value : Expr → Set where
-  valᵢ : ∀ n → Value (int n)
-  valₗ : ∀ ids → ∀ ss → ∀ e → Value (lam ids ss e)
-  valₘ : ∀ ids → ∀ ss → ∀ e → Value (mac ids ss e)
+lookup : {n : Nat} (r : Ref n) → State n → Expr
+lookup (ref r) (state vals _ ) = vals !! r
 
--- The relation of going from one step to another
-data _↦_ : Expr → Expr → Set where
-  -- add₁ :
-  --   ∀ {e₁ e₁' e₂} →
-  --   e₁ ↦ e₁' →
-  --   add e₁ e₂ ↦ add e₁' e₂
+find : {n : Nat} → String → State n → Maybe (Ref n)
+find {n} s (state {f} _ names) with indexOf _≟_ names s
+... | just i = just (ref (weaken-coerce f i))
+... | nothing = nothing
+
+insert : {n : Nat} → Expr → State n → State (suc n) × Ref (suc n)
+insert {n} e (state {f} vals names) =
+  state {f = weakenFin f}
+        (e ∷ vals)
+        (subst (λ n → Vec String n) (toNat-weaken f) names)
+  , ref (fromNat n)
+
+replace : {n : Nat} → Expr → State n → Fin n → State n
+replace e (state vals names) i = state (setAt e vals i) names
+
+small-step : {n : Nat} → (State n) × Expr → Maybe (State (suc n) × Ref (suc n))
+small-step (s@(state vals names) , atom x) with find x s
+... | nothing = nothing
+... | just r@(ref i) with insert (lookup r s) s
+...   | s' , _ = just (s' , ref (weakenFin i))
+small-step (s , pair e e₁)   = {!!}
+small-step (s , quasiquot e) = {!!}
+small-step (s , unquot e)    = nothing
+small-step (s , quot e)      = just (insert e s)
+small-step (s , number x)    = just (insert (number x) s)
+small-step (s , lam x x₁)    = just (insert (lam x x₁) s)
+small-step (s , mac x x₁)    = just (insert (mac x x₁) s)
