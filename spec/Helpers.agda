@@ -4,8 +4,13 @@ open import Agda.Builtin.Bool
 open import Agda.Builtin.Maybe
 open import Agda.Builtin.Nat
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; subst)
-open import Relation.Binary using (DecidableEquality)
-open import Relation.Nullary using (yes; no)
+
+data _≤_ : Nat → Nat → Set where
+  base : (b : Nat) → b ≤ b
+  ind  : {a b : Nat} → a ≤ b → a ≤ (suc b)
+
+indb : (n : Nat) → n ≤ (suc n)
+indb n = ind (base n)
 
 data _×_ (a b : Set) : Set where
   _,_ : a → b → a × b
@@ -30,6 +35,10 @@ weakenFin : {n : Nat} → Fin n → Fin (suc n)
 weakenFin zero = zero
 weakenFin (suc i) = suc (weakenFin i)
 
+weakenFinMany : {n m : Nat} → {proof : n ≤ m} → Fin n → Fin m
+weakenFinMany {n} {m} {base b} f = f
+weakenFinMany {n} {suc m} {ind p} f = weakenFin (weakenFinMany {n} {m} {p} f)
+
 toNat-weaken : {n : Nat} (f : Fin n) →
                toNat f ≡ toNat (weakenFin f)
 toNat-weaken zero = refl
@@ -53,13 +62,13 @@ if true then x else _ = x
 if false then _ else x = x
 
 indexOf : {n : Nat} {a : Set}
-        → DecidableEquality a
+        → (a → a → Bool)
         → Vec a n
         → a
         → Maybe (Fin n)
 indexOf eq [] x = nothing
 indexOf eq (y ∷ ys) x with eq x y
-... | yes _ = just zero
-... | no _ with indexOf eq ys x
+... | true = just zero
+... | false with indexOf eq ys x
 ...   | nothing = nothing
 ...   | just i = just (suc i)
