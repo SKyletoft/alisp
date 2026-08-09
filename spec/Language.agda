@@ -35,6 +35,7 @@ data Value (n : Nat) : Set where
 data PartialValue (n : Nat) : Set where
   evaluated   : Ref n → PartialValue n
   unevaluated : Expr → PartialValue n
+  p-fun       : List (PartialValue n) → PartialValue n
   p-pair      : PartialValue n → PartialValue n → PartialValue n
   p-quasiquot : PartialValue n → PartialValue n
 
@@ -59,6 +60,20 @@ weaken-value {n} {suc m} {ind p} v = weaken-value-suc (weaken-value {n} {m} {p} 
 weaken-partial-suc : {n : Nat} → PartialValue n → PartialValue (suc n)
 weaken-partial-suc (evaluated (ref i)) = evaluated (ref (weakenFin i))
 weaken-partial-suc (unevaluated e)     = unevaluated e
+-- weaken-partial-suc (p-fun []) = p-fun []
+-- weaken-partial-suc (p-fun (x ∷ es)) with weaken-partial-suc (p-fun es)
+-- ... | p-fun es' = p-fun (weaken-partial-suc x ∷ es')
+-- ... | _ = p-fun (weaken-partial-suc x ∷ [])
+
+
+weaken-partial-suc {n} (p-fun es) =
+        p-fun (local-map weaken-partial-suc es)
+        where
+            local-map : (PartialValue n → PartialValue (suc n)) → List (PartialValue n) → List (PartialValue (suc n))
+            local-map f = λ where
+              [] → []
+              (x ∷ xs) → f x ∷ local-map f xs
+
 weaken-partial-suc (p-pair v v₁)       = p-pair (weaken-partial-suc v) (weaken-partial-suc v₁)
 weaken-partial-suc (p-quasiquot v)     = p-quasiquot (weaken-partial-suc v)
 
@@ -135,12 +150,15 @@ mutual
   ... | m , p , s' , r = just (m , p , s' , evaluated r)
   small-step {n} s (unevaluated x@(mac _ _)) with insert x s
   ... | m , p , s' , r = just (m , p , s' , evaluated r)
+  small-step s (p-fun es) =
+    -- Continue function call
+    {!!}
   small-step s (p-pair (evaluated r@(ref i)) e₁) with lookup r s | small-step s e₁
   -- ... | lam _ _ | just (m , (lt-proof , (s' , e2))) =
           -- let r' = evaluated (ref (weakenFinMany {proof = lt-proof} i))
           -- in just (m , (lt-proof , (s' , p-pair r' e₂)))
   ... | lam params body | just (n , lt-proof , s , evaluated x) =
-      -- Do function call
+      -- Setup state for function call
         let args = extract-args s x params
         in {!!}
   ... | lam _ _ | just (m , lt-proof , s' , unevaluated x) = {!!}
