@@ -60,22 +60,13 @@ weaken-value {n} {suc m} {ind p} v = weaken-value-suc (weaken-value {n} {m} {p} 
 weaken-partial-suc : {n : Nat} → PartialValue n → PartialValue (suc n)
 weaken-partial-suc (evaluated (ref i)) = evaluated (ref (weakenFin i))
 weaken-partial-suc (unevaluated e)     = unevaluated e
--- weaken-partial-suc (p-fun []) = p-fun []
--- weaken-partial-suc (p-fun (x ∷ es)) with weaken-partial-suc (p-fun es)
--- ... | p-fun es' = p-fun (weaken-partial-suc x ∷ es')
--- ... | _ = p-fun (weaken-partial-suc x ∷ [])
-
-
-weaken-partial-suc {n} (p-fun es) =
-        p-fun (local-map weaken-partial-suc es)
-        where
-            local-map : (PartialValue n → PartialValue (suc n)) → List (PartialValue n) → List (PartialValue (suc n))
-            local-map f = λ where
-              [] → []
-              (x ∷ xs) → f x ∷ local-map f xs
-
 weaken-partial-suc (p-pair v v₁)       = p-pair (weaken-partial-suc v) (weaken-partial-suc v₁)
 weaken-partial-suc (p-quasiquot v)     = p-quasiquot (weaken-partial-suc v)
+weaken-partial-suc {n} (p-fun es)      = p-fun (map-weaken es)
+  where
+    map-weaken : List (PartialValue n) → List (PartialValue (suc n))
+    map-weaken [] = []
+    map-weaken (x ∷ es) = weaken-partial-suc x ∷ map-weaken es
 
 weaken-partial : {n m : Nat} → {p : n ≤ m} → PartialValue n → PartialValue m
 weaken-partial {n} {m} {base b} v    = v
