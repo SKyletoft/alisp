@@ -47,10 +47,10 @@ data State (n : Nat) : Set where
 weaken-value-suc : {n : Nat} → Value n → Value (suc n)
 weaken-value-suc (atom x)               = atom x
 weaken-value-suc (number x)             = number x
-weaken-value-suc (pair (ref i) (ref j)) = pair (ref (weakenFin i)) (ref (weakenFin j))
-weaken-value-suc (quot (ref i))         = quot (ref (weakenFin i))
-weaken-value-suc (quasiquot (ref i))    = quasiquot (ref (weakenFin i))
-weaken-value-suc (unquot (ref i))       = unquot (ref (weakenFin i))
+weaken-value-suc (pair (ref i) (ref j)) = pair (ref (weaken-fin i)) (ref (weaken-fin j))
+weaken-value-suc (quot (ref i))         = quot (ref (weaken-fin i))
+weaken-value-suc (quasiquot (ref i))    = quasiquot (ref (weaken-fin i))
+weaken-value-suc (unquot (ref i))       = unquot (ref (weaken-fin i))
 weaken-value-suc (lam x x₁)             = lam x x₁
 weaken-value-suc (mac x x₁)             = mac x x₁
 
@@ -59,7 +59,7 @@ weaken-value {n} {m} {base b} v    = v
 weaken-value {n} {suc m} {ind p} v = weaken-value-suc (weaken-value {n} {m} {p} v)
 
 weaken-partial-suc : {n : Nat} → PartialValue n → PartialValue (suc n)
-weaken-partial-suc (evaluated (ref i)) = evaluated (ref (weakenFin i))
+weaken-partial-suc (evaluated (ref i)) = evaluated (ref (weaken-fin i))
 weaken-partial-suc (unevaluated e)     = unevaluated e
 weaken-partial-suc (p-pair v v₁)       = p-pair (weaken-partial-suc v) (weaken-partial-suc v₁)
 weaken-partial-suc (p-quasiquot v)     = p-quasiquot (weaken-partial-suc v)
@@ -79,7 +79,7 @@ weaken-partial {n} {m} {base b} v    = v
 weaken-partial {n} {suc m} {ind p} v = weaken-partial-suc (weaken-partial {n} {m} {p} v)
 
 weaken-ref : {n m : Nat} → {p : n ≤ m} → Ref n → Ref m
-weaken-ref {p = p} (ref fin) = ref (weakenFinMany {proof = p} fin)
+weaken-ref {p = p} (ref fin) = ref (weaken-fin-many {proof = p} fin)
 
 mutual
   expr-to-value : {n : Nat} → State n → Expr → Σ Nat (λ m → (n ≤ m) × State m × Value m)
@@ -100,7 +100,7 @@ mutual
   insert : {n : Nat} → Expr → State n → Σ Nat (λ m → (n ≤ m) × State m × Ref m)
   insert {n} e s with expr-to-value s e
   ... | m , p , s'@(state vals names) , val =
-    let f = map (λ where (str , (ref fin)) → str , ref (weakenFin fin))
+    let f = map (λ where (str , (ref fin)) → str , ref (weaken-fin fin))
         vals' = weaken-value {p = indb m} val
               ∷ v-map (weaken-value {p = indb m}) vals
         names' = ne-map f names

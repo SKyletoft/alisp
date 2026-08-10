@@ -6,6 +6,18 @@ open import Agda.Builtin.Maybe
 open import Agda.Builtin.Nat
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; subst)
 
+_>>=_ : {a b : Set} → Maybe a → (a → Maybe b) → Maybe b
+(just x) >>= f = f x
+nothing >>= _ = nothing
+
+_=<<_ : {a b : Set} → (a → Maybe b) → Maybe a → Maybe b
+f =<< m = m >>= f
+
+_<$>_ : {a b : Set} → (a → b) → Maybe a → Maybe b
+f <$> x = do
+  x ← x
+  just (f x)
+
 data _≤_ : Nat → Nat → Set where
   base : (b : Nat) → b ≤ b
   ind  : {a b : Nat} → a ≤ b → a ≤ (suc b)
@@ -58,27 +70,27 @@ fromNat : (n : Nat) → Fin (suc n)
 fromNat zero = zero
 fromNat (suc e) = suc (fromNat e)
 
-toNat : {n : Nat} → (Fin n) → Nat
-toNat zero = zero
-toNat (suc x) = suc (toNat x)
+to-nat : {n : Nat} → (Fin n) → Nat
+to-nat zero = zero
+to-nat (suc x) = suc (to-nat x)
 
-weakenFin : {n : Nat} → Fin n → Fin (suc n)
-weakenFin zero = zero
-weakenFin (suc i) = suc (weakenFin i)
+weaken-fin : {n : Nat} → Fin n → Fin (suc n)
+weaken-fin zero = zero
+weaken-fin (suc i) = suc (weaken-fin i)
 
-weakenFinMany : {n m : Nat} → {proof : n ≤ m} → Fin n → Fin m
-weakenFinMany {n} {m} {base b} f = f
-weakenFinMany {n} {suc m} {ind p} f = weakenFin (weakenFinMany {n} {m} {p} f)
+weaken-fin-many : {n m : Nat} → {proof : n ≤ m} → Fin n → Fin m
+weaken-fin-many {n} {m} {base b} f = f
+weaken-fin-many {n} {suc m} {ind p} f = weaken-fin (weaken-fin-many {n} {m} {p} f)
 
-toNat-weaken : {n : Nat} (f : Fin n) →
-               toNat f ≡ toNat (weakenFin f)
-toNat-weaken zero = refl
-toNat-weaken (suc f) = cong suc (toNat-weaken f)
+to-nat-weaken : {n : Nat} (f : Fin n) →
+               to-nat f ≡ to-nat (weaken-fin f)
+to-nat-weaken zero = refl
+to-nat-weaken (suc f) = cong suc (to-nat-weaken f)
 
-weaken-coerce : {n : Nat} (f : Fin n) → Fin (toNat f) → Fin n
+weaken-coerce : {n : Nat} (f : Fin n) → Fin (to-nat f) → Fin n
 weaken-coerce zero ()
 weaken-coerce (suc f) zero = zero
-weaken-coerce (suc f) (suc i) = weakenFin (weaken-coerce f i)
+weaken-coerce (suc f) (suc i) = weaken-fin (weaken-coerce f i)
 
 trans-less : {m n o : Nat} → m ≤ n → n ≤ o → m ≤ o
 trans-less (base b) q = q
@@ -97,28 +109,16 @@ if_then_else_ : {a : Set} → Bool → a → a → a
 if true then x else _ = x
 if false then _ else x = x
 
-indexOf : {n : Nat} {a : Set}
+index-of : {n : Nat} {a : Set}
         → (a → Bool)
         → Vec a n
         → Maybe (Fin n)
-indexOf eq [] = nothing
-indexOf eq (y ∷ ys) with eq y
+index-of eq [] = nothing
+index-of eq (y ∷ ys) with eq y
 ... | true = just zero
-... | false with indexOf eq ys
-...   | nothing = nothing
-...   | just i = just (suc i)
-
-_>>=_ : {a b : Set} → Maybe a → (a → Maybe b) → Maybe b
-(just x) >>= f = f x
-nothing >>= _ = nothing
-
-_=<<_ : {a b : Set} → (a → Maybe b) → Maybe a → Maybe b
-f =<< m = m >>= f
-
-_<$>_ : {a b : Set} → (a → b) → Maybe a → Maybe b
-f <$> x = do
-  x ← x
-  just (f x)
+... | false = do
+  i ← index-of eq ys
+  just (suc i)
 
 find-where : {a b : Set} → (a → Bool) → List (a × b) → Maybe b
 find-where f [] = nothing
