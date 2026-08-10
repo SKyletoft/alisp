@@ -32,6 +32,9 @@ data Fin : Nat → Set where
   zero : {n : Nat} → Fin (suc n)
   suc  : {n : Nat} → Fin n → Fin (suc n)
 
+_:::_ : {a : Set} → a → NonEmptyList a → NonEmptyList a
+x ::: (y ∷ ys) = x ∷ y ∷ ys
+
 len : {a : Set} → List a → Nat
 len [] = zero
 len (_ ∷ xs) = suc (len xs)
@@ -113,8 +116,9 @@ _=<<_ : {a b : Set} → (a → Maybe b) → Maybe a → Maybe b
 f =<< m = m >>= f
 
 _<$>_ : {a b : Set} → (a → b) → Maybe a → Maybe b
-f <$> (just x) = just (f x)
-_ <$> nothing = nothing
+f <$> x = do
+  x ← x
+  just (f x)
 
 find-where : {a b : Set} → (a → Bool) → List (a × b) → Maybe b
 find-where f [] = nothing

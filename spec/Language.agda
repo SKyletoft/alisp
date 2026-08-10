@@ -36,12 +36,13 @@ data PartialValue (n : Nat) : Set where
   evaluated   : Ref n → PartialValue n
   unevaluated : Expr → PartialValue n
   p-fun       : List (PartialValue n) → PartialValue n
+  p-mac       : List String → List (PartialValue n) → PartialValue n
   p-pair      : PartialValue n → PartialValue n → PartialValue n
   p-quasiquot : PartialValue n → PartialValue n
 
 data State (n : Nat) : Set where
   state : Vec (Value n) n →
-          NonEmptyList (List (String × Fin n)) → State n
+          NonEmptyList (List (String × Ref n)) → State n
 
 weaken-value-suc : {n : Nat} → Value n → Value (suc n)
 weaken-value-suc (atom x)               = atom x
@@ -63,6 +64,11 @@ weaken-partial-suc (unevaluated e)     = unevaluated e
 weaken-partial-suc (p-pair v v₁)       = p-pair (weaken-partial-suc v) (weaken-partial-suc v₁)
 weaken-partial-suc (p-quasiquot v)     = p-quasiquot (weaken-partial-suc v)
 weaken-partial-suc {n} (p-fun es)      = p-fun (map-weaken es)
+  where
+    map-weaken : List (PartialValue n) → List (PartialValue (suc n))
+    map-weaken [] = []
+    map-weaken (x ∷ es) = weaken-partial-suc x ∷ map-weaken es
+weaken-partial-suc {n} (p-mac vs es)      = p-mac vs (map-weaken es)
   where
     map-weaken : List (PartialValue n) → List (PartialValue (suc n))
     map-weaken [] = []
@@ -94,12 +100,9 @@ mutual
   insert : {n : Nat} → Expr → State n → Σ Nat (λ m → (n ≤ m) × State m × Ref m)
   insert {n} e s with expr-to-value s e
   ... | m , p , s'@(state vals names) , val =
-    let f : List (String × Fin m) → List (String × Fin (suc m))
-        f = map (λ where (str , fin) → str , weakenFin fin)
-        vals' : Vec (Value (suc m)) (suc m)
+    let f = map (λ where (str , (ref fin)) → str , ref (weakenFin fin))
         vals' = weaken-value {p = indb m} val
               ∷ v-map (weaken-value {p = indb m}) vals
-        names' : NonEmptyList (List (String × Fin (suc m)))
         names' = ne-map f names
     in (suc m) , ind p , state vals' names' , ref (fromNat m)
 
@@ -107,18 +110,16 @@ lookup : {n : Nat} (r : Ref n) → State n → Value n
 lookup (ref r) (state vals _ ) = vals !! r
 
 find : {n : Nat} → String → State n → Maybe (Ref n)
-find {n} s (state _ (names ∷ _)) with find-where (primStringEquality s) names
-... | just i = just (ref i)
-... | nothing = nothing
+find {n} s (state _ (current-scope ∷ _)) = find-where (primStringEquality s) current-scope
 
 replace : {n : Nat} → Value n → State n → Fin n → State n
 replace e (state vals names) i = state (setAt e vals i) names
 
-extract-args : {n : Nat} → State n → Ref n → List String → Maybe (List (Ref n))
-extract-args s r (_ ∷ xs) with lookup r s
-... | pair e e₁ =
-  let rest = extract-args s e₁ xs
-    in (λ es → (e ∷ es)) <$> rest
+extract-args : {n : Nat} → State n → Ref n → List String → Maybe (List (String × Ref n))
+extract-args s r (id ∷ xs) with lookup r s
+... | pair e e₁ = do
+      rest ← extract-args s e₁ xs
+      just ((id , e) ∷ rest)
 ... | _ = nothing
 extract-args s r [] with lookup r s
 ... | pair _ _ = nothing
@@ -127,9 +128,9 @@ extract-args s r [] with lookup r s
 mutual
   small-step : {n : Nat} → State n → PartialValue n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
   small-step {n} s (evaluated x) = just (n , base n , s , evaluated x)
-  small-step {n} s (unevaluated (atom x)) with find x s
-  ... | just r = just (n , base n , s , evaluated r)
-  ... | nothing = nothing
+  small-step {n} s (unevaluated (atom x)) = do
+    r ← find x s
+    just (n , base n , s , evaluated r)
   small-step {n} s (unevaluated (number x)) with insert (number x) s
   ... | m , p , s' , r = just (m , p , s' , evaluated r)
   small-step {n} s (unevaluated (pair x x₁)) = just (n , base n , s , p-pair (unevaluated x) (unevaluated x₁))
@@ -145,18 +146,10 @@ mutual
     -- Continue function call
     {!!}
   small-step s (p-pair (evaluated r@(ref i)) e₁) with lookup r s | small-step s e₁
-  -- ... | lam _ _ | just (m , (lt-proof , (s' , e2))) =
-          -- let r' = evaluated (ref (weakenFinMany {proof = lt-proof} i))
-          -- in just (m , (lt-proof , (s' , p-pair r' e₂)))
-  ... | lam params body | just (n , lt-proof , s , evaluated x) =
-      -- Setup state for function call
-        let args = extract-args s x params
-        in {!!}
-  ... | lam _ _ | just (m , lt-proof , s' , unevaluated x) = {!!}
-  ... | lam _ _ | just (m , lt-proof , s' , p-pair e2 e3) = {!!}
-      -- The final element should be evaluated, but is unused
-  ... | lam _ _ | just (m , lt-proof , s' , p-quasiquot e2) = {!!}
-  ... | lam _ _ | nothing = nothing
+  ... | lam params body | just (o , lt-proof , s@(state heap scopes) , evaluated x) = do
+          args ← extract-args s x params
+          just (o , lt-proof , (state heap (args ::: scopes)) , p-fun (map unevaluated body))
+  ... | lam _ _ | ret = ret
   ... | mac _ _ | _ = {!!}
   ... | _ | _ = nothing
   small-step s (p-pair e e₁) with small-step s e
@@ -164,13 +157,16 @@ mutual
           let e₁' = (weaken-partial {p = proof} e₁)
           in just (n , proof , s , p-pair e' e₁')
   ... | nothing = nothing
+  small-step s (p-mac vs es) =
+    -- Continue macro call
+    {!!}
   small-step {n} s (p-quasiquot e) = {!!}
 
   small-step-many : {n : Nat} → State n → List (PartialValue n) → Maybe (Σ Nat (λ m → (n ≤ m) × State m × List (PartialValue m)))
   small-step-many {n} s [] = just (n , (base n , (s , [])))
-  small-step-many s (e@(evaluated _) ∷ es) with small-step-many s es
-  ... | just (m , p , s' , es') = just (m , p , s' , weaken-partial {p = p} e ∷ es')
-  ... | nothing = nothing
-  small-step-many s (e ∷ es) with small-step s e
-  ... | just (m , p , s' , e') = just (m , p , s' , e' ∷ map (weaken-partial {p = p}) es)
-  ... | nothing = nothing
+  small-step-many s (e@(evaluated _) ∷ es) = do
+    (m , p , s' , es') ← small-step-many s es
+    just (m , p , s' , weaken-partial {p = p} e ∷ es')
+  small-step-many s (e ∷ es) = do
+    (m , p , s' , e') ← small-step s e
+    just (m , p , s' , e' ∷ map (weaken-partial {p = p}) es)
