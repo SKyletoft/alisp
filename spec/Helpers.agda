@@ -167,9 +167,9 @@ _!!_ : {A : Set} {n : Nat} → Vec A n → Fin n → A
 (x ∷ xs) !! zero = x
 (x ∷ xs) !! suc i = xs !! i
 
-setAt : {a : Set} {n : Nat} → a → Vec a n → Fin n → Vec a n
-setAt x (y ∷ ys) zero = x ∷ ys
-setAt x (y ∷ ys) (suc i) = y ∷ setAt x ys i
+set-at : {a : Set} {n : Nat} → a → Vec a n → Fin n → Vec a n
+set-at x (y ∷ ys) zero = x ∷ ys
+set-at x (y ∷ ys) (suc i) = y ∷ set-at x ys i
 
 if_then_else_ : {a : Set} → Bool → a → a → a
 if true then x else _ = x

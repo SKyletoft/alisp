@@ -112,7 +112,7 @@ find : {n : Nat} → String → State n → Maybe (Ref n)
 find {n} s (state _ (current-scope ∷ _)) = find-where (primStringEquality s) current-scope
 
 replace : {n : Nat} → Value n → State n → Fin n → State n
-replace e (state vals names) i = state (setAt e vals i) names
+replace e (state vals names) i = state (set-at e vals i) names
 
 extract-args : {n : Nat} → State n → Ref n → List String → Maybe (List (String × Ref n))
 extract-args s r (id ∷ xs) with lookup r s
