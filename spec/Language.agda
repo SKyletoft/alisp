@@ -1,3 +1,4 @@
+-- {-# OPTIONS --allow-unsolved-metas #-}
 module Language where
 
 open import Agda.Builtin.Bool
@@ -6,7 +7,10 @@ open import Agda.Builtin.Maybe
 open import Agda.Builtin.Nat
 open import Agda.Builtin.Sigma
 open import Agda.Builtin.String
+open import Function using (case_of_; case_returning_of_)
 open import Helpers
+
+open Monad {{...}}
 
 data Ref (n : Nat) : Set where
   ref : Fin n → Ref n
@@ -102,8 +106,19 @@ mutual
     let f = map (λ where (str , (ref fin)) → str , ref (weaken-fin fin))
         vals' = weaken-value {p = indb m} val
               ∷ v-map (weaken-value {p = indb m}) vals
-        names' = ne-map f names
-    in (suc m) , ind p , state vals' names' , ref (fromNat m)
+        names' = map f names
+    in (suc m) , ind p , state vals' names' , ref (from-nat m)
+
+  insert-many-or-none : {n : Nat} → List Expr → State n → Σ Nat (λ m → (n ≤ m) × State m)
+  insert-many-or-none [] s = _ , base _ , s
+  insert-many-or-none (e ∷ es) s with insert e s
+  ... | m , p , s' , r = m , p , s'
+
+  insert-many : {n : Nat} → NonEmptyList Expr → State n → Σ Nat (λ m → (n ≤ m) × State m × Ref m)
+  insert-many (e ∷ es) s with insert-many-or-none es s
+  ... | m , p , s = case insert {m} e s of \{
+      (o , p' , s' , r) → o , trans-less p p' , s' , r
+    }
 
 lookup : {n : Nat} (r : Ref n) → State n → Value n
 lookup (ref r) (state vals _ ) = vals !! r
@@ -141,9 +156,24 @@ mutual
   ... | m , p , s' , r = just (m , p , s' , evaluated r)
   small-step {n} s (unevaluated x@(mac _ _)) with insert x s
   ... | m , p , s' , r = just (m , p , s' , evaluated r)
-  small-step s (p-fun es) =
-    -- Continue function call
-    {!!}
+  small-step s (p-fun es) = do
+    m , p , heap , scopes , es ← case small-step-many s es returning Maybe (Nat × ? × ? × ? × ? × ? × ?) of \{
+        (just (m , p , s@(state heap (ss ∷ sss ∷ scopes)) , es)) → just (m , p , heap , ss , sss , scopes , es)
+        _ → nothing
+      }
+    case return-value es of \{
+        (just r) →
+          -- pop stack, return
+          just (m , p , state heap scopes , evaluated r)
+        ; nothing →
+          -- continue function eval
+          just (m , p , state heap  , p-fun es)
+      }
+    where
+      return-value : {n : Nat} → List (PartialValue n) → Maybe (Ref n)
+      return-value (evaluated x ∷ []) = just x
+      return-value (evaluated _ ∷ es) = return-value es
+      return-value _ = nothing
   small-step s (p-pair (evaluated r@(ref i)) e₁) with lookup r s | small-step s e₁
   ... | lam params body | just (o , lt-proof , s@(state heap scopes) , evaluated x) = do
           args ← extract-args s x params
@@ -169,3 +199,9 @@ mutual
   small-step-many s (e ∷ es) = do
     (m , p , s' , e') ← small-step s e
     just (m , p , s' , e' ∷ map (weaken-partial {p = p}) es)
+
+eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × List (PartialValue m)))
+eval {n} s ls =
+  let pvs : List (PartialValue n)
+      pvs = {!!}
+   in {!!}
