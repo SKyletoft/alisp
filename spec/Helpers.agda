@@ -125,3 +125,7 @@ find-where f [] = nothing
 find-where f ((x , y) ∷ xs) with f x
 ... | true = just y
 ... | false = find-where f xs
+
+unwrap-or : {a : Set} → Maybe a → a → a
+unwrap-or (just x) _ = x
+unwrap-or nothing x = x
