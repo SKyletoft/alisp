@@ -7,7 +7,6 @@ open import Agda.Builtin.Nat
 open import Agda.Builtin.Sigma
 open import Agda.Builtin.String
 open import Helpers
-open import Relation.Binary.PropositionalEquality using (subst)
 
 data Ref (n : Nat) : Set where
   ref : Fin n → Ref n
