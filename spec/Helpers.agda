@@ -52,10 +52,23 @@ record Monad (F : Set → Set) : Set₁ where
   field
     return : {a : Set} → a → F a
     _>>=_  : {a b : Set} → F a → (a → F b) → F b
-    _=<<_  : {a b : Set} → (a → F b) → F a → F b
     _<$>_  : {a b : Set} → (a → b) → F a → F b
-
 open Monad {{...}}
+
+_>>_ : {F : Set → Set} {{ r : Monad F }} {a b : Set} → F a → F b → F b
+x >> y = do
+  _ ← x
+  y ← y
+  return y
+
+_<<_ : {F : Set → Set} {{ r : Monad F }} {a b : Set} → F a → F b → F a
+x << y = do
+  x ← x
+  _ ← y
+  return x
+
+_=<<_ : {F : Set → Set} {{ r : Monad F }} {a b : Set} → (a → F b) → F a → F b
+f =<< x = x >>= f
 
 map : {F : Set → Set} {{ r : Monad F }} {a b : Set} → (a → b) → F a → F b
 map = _<$>_
@@ -84,7 +97,6 @@ instance
   Monad._>>=_ Maybe-Monad = λ where
     (just x) f → f x
     nothing _ → nothing
-  Monad._=<<_ Maybe-Monad = λ f m → Monad._>>=_ Maybe-Monad m f
   Monad._<$>_ Maybe-Monad = λ where
     f (just x) → just (f x)
     _ nothing → nothing
@@ -94,7 +106,6 @@ instance
   Monad._>>=_ List-Monad = λ where
     [] f → []
     (x ∷ xs) f → f x ++ Monad._>>=_ List-Monad xs f
-  Monad._=<<_ List-Monad = λ f m → Monad._>>=_ List-Monad m f
   Monad._<$>_ List-Monad = lmap
     where
       lmap : {a b : Set} → (a → b) → List a → List b
@@ -112,7 +123,6 @@ instance
     bind : {a b : Set} → NonEmptyList a → (a → NonEmptyList b) → NonEmptyList b
     bind (x ∷ xs) f with f x
     ... | h ∷ t = h ∷ t ++ Monad._>>=_ List-Monad xs (λ y → ne-tail (f y))
-  Monad._=<<_ NonEmptyList-Monad = λ f m → Monad._>>=_ NonEmptyList-Monad m f
   Monad._<$>_ NonEmptyList-Monad = ne-map
     where
       ne-map : {a b : Set} → (a → b) → NonEmptyList a → NonEmptyList b
@@ -121,14 +131,12 @@ instance
   Vec-Monad : {n : Nat} → Monad (λ a → Vec a n)
   Monad.return (Vec-Monad {n}) = replicate {n}
   Monad._>>=_ (Vec-Monad {n}) = bind-vec {n}
-  Monad._=<<_ (Vec-Monad {n}) = λ f m → bind-vec {n} m f
   Monad._<$>_ (Vec-Monad {n}) = v-map
 
   Identity-Monad : Monad Identity
   Monad.return Identity-Monad = identity
   Monad._>>=_ Identity-Monad = λ where
     (identity x) f → f x
-  Monad._=<<_ Identity-Monad = λ f m → Monad._>>=_ Identity-Monad m f
   Monad._<$>_ Identity-Monad = λ where
     f (identity x) → identity (f x)
 
