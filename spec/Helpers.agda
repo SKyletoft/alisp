@@ -44,15 +44,12 @@ to-vec : {a : Set} → (l : List a) → Vec a (len l)
 to-vec [] = []
 to-vec (x ∷ xs) = x ∷ to-vec xs
 
-v-map : {n : Nat} → {a b : Set} → (a → b) → Vec a n → Vec b n
-v-map f [] = []
-v-map f (x ∷ xs) = f x ∷ v-map f xs
-
 record Monad (F : Set → Set) : Set₁ where
   field
     return : {a : Set} → a → F a
     _>>=_  : {a b : Set} → F a → (a → F b) → F b
     _<$>_  : {a b : Set} → (a → b) → F a → F b
+    _<*>_  : {a b : Set} → F (a → b) → F a → F b
 open Monad {{...}}
 
 _>>_ : {F : Set → Set} {{ r : Monad F }} {a b : Set} → F a → F b → F b
@@ -100,6 +97,10 @@ instance
   Monad._<$>_ Maybe-Monad = λ where
     f (just x) → just (f x)
     _ nothing → nothing
+  Monad._<*>_ Maybe-Monad = λ where
+    (just f) (just x) → just (f x)
+    (just _) nothing → nothing
+    nothing _ → nothing
 
   List-Monad : Monad (λ a → List a)
   Monad.return List-Monad = λ x → x ∷ []
@@ -111,6 +112,9 @@ instance
       lmap : {a b : Set} → (a → b) → List a → List b
       lmap f [] = []
       lmap f (x ∷ xs) = f x ∷ lmap f xs
+  Monad._<*>_ List-Monad = λ where
+    [] _ → []
+    (f ∷ fs) xs → Monad._<$>_ List-Monad f xs ++ Monad._<*>_ List-Monad fs xs
 
 
   NonEmptyList-Monad : Monad (λ a → NonEmptyList a)
@@ -127,11 +131,24 @@ instance
     where
       ne-map : {a b : Set} → (a → b) → NonEmptyList a → NonEmptyList b
       ne-map f (x ∷ xs) = f x ∷ f <$> xs
+  Monad._<*>_ NonEmptyList-Monad = ne-ap
+    where
+      ne-ap : {a b : Set} → NonEmptyList (a → b) → NonEmptyList a → NonEmptyList b
+      ne-ap (f ∷ fs) (x ∷ xs) = f x ∷ Monad._<$>_ List-Monad f xs ++ Monad._<*>_ List-Monad fs (x ∷ xs)
 
   Vec-Monad : {n : Nat} → Monad (λ a → Vec a n)
   Monad.return (Vec-Monad {n}) = replicate {n}
   Monad._>>=_ (Vec-Monad {n}) = bind-vec {n}
   Monad._<$>_ (Vec-Monad {n}) = v-map
+    where
+      v-map : {n : Nat} → {a b : Set} → (a → b) → Vec a n → Vec b n
+      v-map f [] = []
+      v-map f (x ∷ xs) = f x ∷ v-map f xs
+  Monad._<*>_ (Vec-Monad {n}) = v-ap
+    where
+      v-ap : {n : Nat} → {a b : Set} → Vec (a → b) n → Vec a n → Vec b n
+      v-ap [] [] = []
+      v-ap (f ∷ fs) (x ∷ xs) = f x ∷ v-ap fs xs
 
   Identity-Monad : Monad Identity
   Monad.return Identity-Monad = identity
@@ -139,6 +156,8 @@ instance
     (identity x) f → f x
   Monad._<$>_ Identity-Monad = λ where
     f (identity x) → identity (f x)
+  Monad._<*>_ Identity-Monad = λ where
+    (identity f) (identity x) → identity (f x)
 
 from-nat : (n : Nat) → Fin (suc n)
 from-nat zero = zero
