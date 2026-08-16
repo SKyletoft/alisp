@@ -58,12 +58,6 @@ x >> y = do
   y ← y
   return y
 
-_<<_ : {F : Set → Set} {{ r : Monad F }} {a b : Set} → F a → F b → F a
-x << y = do
-  x ← x
-  _ ← y
-  return x
-
 _=<<_ : {F : Set → Set} {{ r : Monad F }} {a b : Set} → (a → F b) → F a → F b
 f =<< x = x >>= f
 
