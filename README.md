@@ -10,6 +10,9 @@ familiar with elisp. Following Scheme whenever I have to look up any
 ambiguity or oddity. And then taking arrays, maps and reasonable
 datastructures from Clojure.
 
+Ambiguities in the ideas behind the language has moved focus to a
+formal agda spec, found in spec/.
+
 We also have optional type signatures for comparison's sake for the JIT.
 
 The actual core language is kept as minimal as possible with as much
