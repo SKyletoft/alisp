@@ -105,7 +105,7 @@ mutual
   ... | m , p , s'@(state vals names) , val =
     let f = map (λ where (str , (ref fin)) → str , ref (weaken-fin fin))
         vals' = weaken-value {p = indb m} val
-              ∷ v-map (weaken-value {p = indb m}) vals
+              ∷ map (weaken-value {p = indb m}) vals
         names' = map f names
     in (suc m) , ind p , state vals' names' , ref (from-nat m)
 
