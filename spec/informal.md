@@ -91,13 +91,13 @@ macro. Macros are unhygienic on purpose.
 ### Builtin functions
 Just the basic mathsy ones, not included in the formalisation for now.
 ### Builtin macros
-We have four builtin macro functions: "lambda", "macro", "set",
-"declare" (and a set of builtin lambda functions for maths and such
-that we don't need to model for now). Having the lambda and macro
-functions distinguish us from a typical lisp as those treat lambda as
-a keyword that required an eval step before any generic list can be
-evaluated. We don't need the eval step because lambda is a builtin
-function that transforms data into code.
+We have five builtin macro functions: "lambda", "macro", "set",
+"declare", "match" (and a set of builtin lambda functions for maths
+and such that we don't need to model for now). Having the lambda and
+macro functions distinguish us from a typical lisp as those treat
+lambda as a keyword that required an eval step before any generic list
+can be evaluated. We don't need the eval step because lambda is a
+builtin function that transforms data into code.
 * "macro" is a macro function that returns a macro function object. The
 first argument must be a cons-cell linked list of identifiers that
 makes up the parameter list. The following arguments are then the
@@ -149,6 +149,36 @@ reference which points to the value of the second argument, leaving
 aliasing bindings to the same object reference intact.  This function
 fails when the parameter list doesn't follow the required format or
 when there is no return expression.
+* "match" is a macro function that takes four arguments. The first two
+are evaluated.  The first argument is the value being matched and the
+second value is the pattern. If they are structurally identical
+(except for unbound variables in the pattern if it came from a quote)
+the third argument is evaluated and returned, otherwise the fourth
+argument is evaluated and returned. If the pattern had unbound
+variables these are now bound within the scope of the match call to
+whatever they match in the value.
+Example:
+```lisp
+(declare 'x 4)
+(match x 4
+        1
+        2)
+> 1
+```
+```lisp
+(declare 'x '(1 2))
+(match x '(1 y)
+        y
+        0)
+> 2
+```
+```lisp
+(declare 'x 1)
+(match 'x 'x
+        x
+        2)
+> 2
+```
 ### Builtin values
 There are two predefined variables: t and nil. They are both defined
 as themselves but quoted.
