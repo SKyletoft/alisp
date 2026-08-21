@@ -148,7 +148,11 @@ already bound it updates the identifier to point to a new object
 reference which points to the value of the second argument, leaving
 aliasing bindings to the same object reference intact.  This function
 fails when the parameter list doesn't follow the required format or
-when there is no return expression.
+when there is no return expression. The new object reference
+(originally equal to nil) is created after the evaluation of the name
+(first argument) but before the second (the value), allowing for
+recursive definitions. The value is then assigned to that same object
+reference, through the same semantics as "set".
 * "match" is a macro function that takes four arguments. The first two
 are evaluated.  The first argument is the value being matched and the
 second value is the pattern. If they are structurally identical
@@ -189,3 +193,8 @@ as themselves but quoted.
 In practice we will just terminate or have the interpreter return an
 error when the language causes a failure. It's still unclear how this
 is to be formalised.
+
+## Optimisation
+All optimisations are to be performed according to a C-like
+as-if-rule. As long as any observable behaviour is kept, any actual
+evaluation is valid.
