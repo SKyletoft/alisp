@@ -14,14 +14,13 @@ data _≤_ : Nat → Nat → Set where
 indb : (n : Nat) → n ≤ (suc n)
 indb n = ind (base n)
 
-data _×_ (a b : Set) : Set where
-  _,_ : a → b → a × b
+record _×_ (a b : Set) : Set where
+  constructor _,_
+  field
+    fst : a
+    snd : b
 
-fst : {a b : Set} → a × b → a
-fst (x , _) = x
-
-snd : {a b : Set} → a × b → b
-snd (_ , x) = x
+open _×_ public
 
 infixr 2 _×_
 infixr 4 _,_
