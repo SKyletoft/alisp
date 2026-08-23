@@ -21,8 +21,6 @@ data Expr : Set where
   quot      : Expr → Expr
   quasiquot : Expr → Expr
   unquot    : Expr → Expr
-  lam       : List String → List Expr → Expr
-  mac       : List String → List Expr → Expr
 
 data Value (n : Nat) : Set where
   atom      : String → Value n
@@ -106,8 +104,6 @@ mutual
   ... | m , p , s' , r =  m , p , s' , quasiquot r
   expr-to-value {n} s (unquot e) with insert e s
   ... | m , p , s' , r =  m , p , s' , unquot r
-  expr-to-value {n} s (lam x x₁) = n , base n , s , lam x x₁
-  expr-to-value {n} s (mac x x₁) = n , base n , s , mac x x₁
 
   insert : {n : Nat} → Expr → State n → Σ Nat (λ m → (n ≤ m) × State m × Ref m)
   insert {n} e s with expr-to-value s e
@@ -208,10 +204,6 @@ mutual
   ... | m , p , s' , r = just (m , p , s' , evaluated r)
   small-step-expr {n} s (quasiquot x) = just (n , base n , s , p-quasiquot (unevaluated x))
   small-step-expr {n} s (unquot x) = nothing
-  small-step-expr {n} s x@(lam _ _) with insert x s
-  ... | m , p , s' , r = just (m , p , s' , evaluated r)
-  small-step-expr {n} s x@(mac _ _) with insert x s
-  ... | m , p , s' , r = just (m , p , s' , evaluated r)
 
 eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValues m))
 eval {n} s ls =
