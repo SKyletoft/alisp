@@ -11,6 +11,10 @@ open import Helpers
 
 open Monad {{...}}
 
+-- Greppable replacement for nothing for early proofs
+NONE : {a : Set} → Maybe a
+NONE = nothing
+
 mutual
   data Ref (n : Nat) : Set where
     ref : Fin n → Ref n
@@ -35,11 +39,11 @@ mutual
     builtin   : Builtin → Value n
 
   data Builtin : Set where
-    lambda-builtin : Builtin
-    macro-builtin : Builtin
-    set-builtin : Builtin
+    lambda-builtin  : Builtin
+    macro-builtin   : Builtin
+    set-builtin     : Builtin
     declare-builtin : Builtin
-    match-builtin : Builtin
+    match-builtin   : Builtin
 
   data PartialValue (n : Nat) : Set where
     evaluated   : Ref n → PartialValue n
@@ -85,12 +89,12 @@ weaken-partial-suc (p-quasiquot v)     = p-quasiquot (weaken-partial-suc v)
 weaken-partial-suc {n} (p-fun es)      = p-fun (map-weaken es)
   where
     map-weaken : List (PartialValue n) → List (PartialValue (suc n))
-    map-weaken [] = []
+    map-weaken []       = []
     map-weaken (x ∷ es) = weaken-partial-suc x ∷ map-weaken es
-weaken-partial-suc {n} (p-mac vs es)      = p-mac vs (map-weaken es)
+weaken-partial-suc {n} (p-mac vs es) = p-mac vs (map-weaken es)
   where
     map-weaken : List (PartialValue n) → List (PartialValue (suc n))
-    map-weaken [] = []
+    map-weaken []       = []
     map-weaken (x ∷ es) = weaken-partial-suc x ∷ map-weaken es
 
 weaken-partial : {n m : Nat} → {p : n ≤ m} → PartialValue n → PartialValue m
@@ -181,7 +185,7 @@ mutual
           args ← extract-args s x params
           just (o , lt-proof , (state heap (args ::: scopes)) , p-fun (map unevaluated body))
   ... | lam _ _ | ret = ret
-  ... | mac _ _ | _   = {!!}
+  ... | mac _ _ | _   = NONE
   ... | _       | _   = nothing
   small-step s (p-pair e e₁) with small-step s e
   ... | just (n , proof , s , e') =
@@ -190,8 +194,8 @@ mutual
   ... | nothing = nothing
   small-step s (p-mac vs es) =
     -- Continue macro call
-    {!!}
-  small-step {n} s (p-quasiquot e) = {!!}
+    NONE
+  small-step {n} s (p-quasiquot e) = NONE
 
   small-step-many : {n : Nat} → State n → PartialValues n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValues m))
   small-step-many {n} s [] = just (n , (base n , (s , [])))
@@ -214,29 +218,29 @@ mutual
   small-step-expr {n} s (quasiquot x) = just (n , base n , s , p-quasiquot (unevaluated x))
   small-step-expr {n} s (unquot x) = nothing
 
-eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValues m))
-eval {n} s ls =
-  let pvs : PartialValues n
-      pvs = {!!}
-   in {!!}
+-- eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValues m))
+-- eval {n} s ls =
+--   let pvs : PartialValues n
+--       pvs = {!!}
+--    in {!!}
 
 BuiltinSig : Nat → Set
 BuiltinSig n = State n → List Expr → Maybe $ Σ Nat (λ m → (n ≤ m) × State m × Value m)
 
 lambda-builtin-impl : {n : Nat} → BuiltinSig n
-lambda-builtin-impl s e = {!!}
+lambda-builtin-impl s e = NONE
 
 macro-builtin-impl : {n : Nat} → BuiltinSig n
-macro-builtin-impl s e = {!!}
+macro-builtin-impl s e = NONE
 
 set-builtin-impl : {n : Nat} → BuiltinSig n
-set-builtin-impl s e = {!!}
+set-builtin-impl s e = NONE
 
 declare-builtin-impl : {n : Nat} → BuiltinSig n
-declare-builtin-impl s e = {!!}
+declare-builtin-impl s e = NONE
 
 match-builtin-impl : {n : Nat} → BuiltinSig n
-match-builtin-impl s e = {!!}
+match-builtin-impl s e = NONE
 
 new-state : State 5
 new-state = state
