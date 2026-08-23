@@ -112,7 +112,7 @@ mutual
   insert : {n : Nat} → Expr → State n → Σ Nat (λ m → (n ≤ m) × State m × Ref m)
   insert {n} e s with expr-to-value s e
   ... | m , p , s'@(state vals names) , val =
-    let f = map (λ where (str , (ref fin)) → str , ref (weaken-fin fin))
+    let f = map λ { (str , (ref fin)) → str , ref (weaken-fin fin) }
         vals' = weaken-value {p = indb m} val
               ∷ map (weaken-value {p = indb m}) vals
         names' = map f names
@@ -166,7 +166,7 @@ mutual
           just (m , p , state heap  , p-fun es)
       }
     where
-      return-value : {n : Nat} → List (PartialValue n) → Maybe (Ref n)
+      return-value : {n : Nat} → PartialValues n → Maybe (Ref n)
       return-value (evaluated x ∷ []) = just x
       return-value (evaluated _ ∷ es) = return-value es
       return-value _ = nothing
@@ -175,8 +175,8 @@ mutual
           args ← extract-args s x params
           just (o , lt-proof , (state heap (args ::: scopes)) , p-fun (map unevaluated body))
   ... | lam _ _ | ret = ret
-  ... | mac _ _ | _ = {!!}
-  ... | _ | _ = nothing
+  ... | mac _ _ | _   = {!!}
+  ... | _       | _   = nothing
   small-step s (p-pair e e₁) with small-step s e
   ... | just (n , proof , s , e') =
           let e₁' = (weaken-partial {p = proof} e₁)
@@ -187,7 +187,7 @@ mutual
     {!!}
   small-step {n} s (p-quasiquot e) = {!!}
 
-  small-step-many : {n : Nat} → State n → List (PartialValue n) → Maybe (Σ Nat (λ m → (n ≤ m) × State m × List (PartialValue m)))
+  small-step-many : {n : Nat} → State n → PartialValues n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValues m))
   small-step-many {n} s [] = just (n , (base n , (s , [])))
   small-step-many s (e@(evaluated _) ∷ es) = do
     (m , p , s' , es') ← small-step-many s es
@@ -196,7 +196,6 @@ mutual
     (m , p , s' , e') ← small-step s e
     just (m , p , s' , e' ∷ map (weaken-partial {p = p}) es)
 
-eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × List (PartialValue m)))
   small-step-expr : {n : Nat} → State n → Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
   small-step-expr {n} s (atom x) = do
     r ← find x s
@@ -213,7 +212,8 @@ eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m)
   small-step-expr {n} s x@(mac _ _) with insert x s
   ... | m , p , s' , r = just (m , p , s' , evaluated r)
 
+eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValues m))
 eval {n} s ls =
-  let pvs : List (PartialValue n)
+  let pvs : PartialValues n
       pvs = {!!}
    in {!!}
