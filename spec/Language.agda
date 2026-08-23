@@ -108,35 +108,42 @@ mutual
   expr-to-value : {n : Nat} → State n → Expr → Σ Nat (λ m → (n ≤ m) × State m × Value m)
   expr-to-value {n} s (atom x)   = n , base n , s , atom x
   expr-to-value {n} s (number x) = n , base n , s , number x
-  expr-to-value {n} s (pair e e₁) with insert e s
-  ... | n , p , s , r with insert e₁ s
-  ... | m , p' , s , r₁ = m , trans-less p p' , s , pair (weaken-ref {p = p'} r) r₁
-  expr-to-value {n} s (quot e) with insert e s
-  ... | m , p , s' , r =  m , p , s' , quot r
-  expr-to-value {n} s (quasiquot e) with insert e s
-  ... | m , p , s' , r =  m , p , s' , quasiquot r
-  expr-to-value {n} s (unquot e) with insert e s
-  ... | m , p , s' , r =  m , p , s' , unquot r
+  expr-to-value s (pair l r) =
+    let _ , p , s , l' = insert l s
+        m , q , s , r' = insert r s
+        proof = trans-less p q
+     in m , proof , s , pair (weaken-ref {p = q} l') r'
+  expr-to-value s (quot e) =
+    let m , p , s , r = insert e s
+     in m , p , s , quot r
+  expr-to-value s (quasiquot e) =
+    let m , p , s , r = insert e s
+     in m , p , s , quasiquot r
+  expr-to-value s (unquot e) =
+    let m , p , s , r = insert e s
+     in m , p , s , unquot r
 
   insert : {n : Nat} → Expr → State n → Σ Nat (λ m → (n ≤ m) × State m × Ref m)
   insert {n} e s with expr-to-value s e
-  ... | m , p , s'@(state vals names) , val =
+  ... | m , p , state vals names , val =
     let f = map λ { (str , (ref fin)) → str , ref (weaken-fin fin) }
-        vals' = weaken-value {p = indb m} val
+        vals = weaken-value {p = indb m} val
               ∷ map (weaken-value {p = indb m}) vals
-        names' = map f names
-    in (suc m) , ind p , state vals' names' , ref (from-nat m)
+        names = map f names
+     in suc m , ind p , state vals names , ref (from-nat m)
 
   insert-many-or-none : {n : Nat} → List Expr → State n → Σ Nat (λ m → (n ≤ m) × State m)
   insert-many-or-none [] s = _ , base _ , s
-  insert-many-or-none (e ∷ es) s with insert e s
-  ... | m , p , s' , r = m , p , s'
+  insert-many-or-none (e ∷ es) s =
+    let m , p , s' , r = insert e s
+     in m , p , s'
 
   insert-many : {n : Nat} → NonEmptyList Expr → State n → Σ Nat (λ m → (n ≤ m) × State m × Ref m)
-  insert-many (e ∷ es) s with insert-many-or-none es s
-  ... | m , p , s = case insert {m} e s of \{
-      (o , p' , s' , r) → o , trans-less p p' , s' , r
-    }
+  insert-many (e ∷ es) s =
+    let m , p , s     = insert-many-or-none es s
+        m , q , s , r = insert {m} e s
+        proof         = trans-less p q
+     in m , proof , s , r
 
 lookup : {n : Nat} (r : Ref n) → State n → Value n
 lookup (ref r) (state vals _ ) = vals !! r
@@ -151,7 +158,7 @@ extract-args : {n : Nat} → State n → Ref n → List String → Maybe (List (
 extract-args s r (id ∷ xs) with lookup r s
 ... | pair e e₁ = do
       rest ← extract-args s e₁ xs
-      just ((id , e) ∷ rest)
+      just $ (id , e) ∷ rest
 ... | _ = nothing
 extract-args s r [] with lookup r s
 ... | pair _ _ = nothing
@@ -168,7 +175,7 @@ mutual
         let popped-scopes = sss ∷ scopes
             ret : Σ Nat (λ m →  n ≤ m × Heap m × Scopes m × Scopes m × List (PartialValue m))
             ret = m , p , heap , all-scopes , popped-scopes , es
-        in just ret
+         in just ret
       ; _ → nothing
       }
     case return-value es of λ
@@ -183,46 +190,94 @@ mutual
   small-step s (p-pair (evaluated r@(ref i)) e₁) with lookup r s | small-step s e₁
   ... | lam params body | just (o , lt-proof , s@(state heap scopes) , evaluated x) = do
           args ← extract-args s x params
-          just (o , lt-proof , (state heap (args ::: scopes)) , p-fun (map unevaluated body))
+          let s = state heap (args ::: scopes)
+          just $ o , lt-proof , s , p-fun (map unevaluated body)
   ... | lam _ _ | ret = ret
   ... | mac _ _ | _   = NONE
   ... | _       | _   = nothing
-  small-step s (p-pair e e₁) with small-step s e
-  ... | just (n , proof , s , e') =
-          let e₁' = (weaken-partial {p = proof} e₁)
-          in just (n , proof , s , p-pair e' e₁')
-  ... | nothing = nothing
+  small-step s (p-pair l r) = do
+    (n , proof , s , l') ← small-step s l
+    let r' = weaken-partial {p = proof} r
+    just $ n , proof , s , p-pair l' r'
   small-step s (p-mac vs es) =
     -- Continue macro call
     NONE
   small-step {n} s (p-quasiquot e) = NONE
 
   small-step-many : {n : Nat} → State n → PartialValues n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValues m))
-  small-step-many {n} s [] = just (n , (base n , (s , [])))
+  small-step-many {n} s []                 = just (n , (base n , (s , [])))
   small-step-many s (e@(evaluated _) ∷ es) = do
-    (m , p , s' , es') ← small-step-many s es
-    just (m , p , s' , weaken-partial {p = p} e ∷ es')
+    m , p , s' , es' ← small-step-many s es
+    just $ m , p , s' , weaken-partial {p = p} e ∷ es'
   small-step-many s (e ∷ es) = do
-    (m , p , s' , e') ← small-step s e
-    just (m , p , s' , e' ∷ map (weaken-partial {p = p}) es)
+    m , p , s' , e' ← small-step s e
+    just $ m , p , s' , e' ∷ map (weaken-partial {p = p}) es
 
   small-step-expr : {n : Nat} → State n → Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
   small-step-expr {n} s (atom x) = do
     r ← find x s
-    just (n , base n , s , evaluated r)
-  small-step-expr {n} s (number x) with insert (number x) s
-  ... | m , p , s' , r = just (m , p , s' , evaluated r)
+    just $ n , base n , s , evaluated r
+  small-step-expr {n} s (number x) =
+    let m , p , s' , r = insert (number x) s
+    in just $ m , p , s' , evaluated r
   small-step-expr {n} s (pair x x₁) = just (n , base n , s , p-pair (unevaluated x) (unevaluated x₁))
-  small-step-expr {n} s (quot x) with insert x s
-  ... | m , p , s' , r = just (m , p , s' , evaluated r)
+  small-step-expr {n} s (quot x)    =
+    let m , p , s' , r = insert x s
+    in just $ m , p , s' , evaluated r
   small-step-expr {n} s (quasiquot x) = just (n , base n , s , p-quasiquot (unevaluated x))
-  small-step-expr {n} s (unquot x) = nothing
+  small-step-expr {n} s (unquot x)    = nothing
 
--- eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValues m))
--- eval {n} s ls =
---   let pvs : PartialValues n
---       pvs = {!!}
---    in {!!}
+new-state : State 5
+new-state = state
+  ( (builtin lambda-builtin)
+  ∷ (builtin macro-builtin)
+  ∷ (builtin set-builtin)
+  ∷ (builtin declare-builtin)
+  ∷ (builtin match-builtin)
+  ∷ []
+  )
+  (( ("lambda"  , ref zero)
+   ∷ ("macro"   , ref (suc zero))
+   ∷ ("set"     , ref (suc (suc zero)))
+   ∷ ("declare" , ref (suc (suc (suc zero))))
+   ∷ ("match"   , ref (suc (suc (suc (suc zero)))))
+   ∷ []
+  ) ∷ [])
+
+eval : Nat → Expr → Maybe Expr
+eval fuel expr = do
+  n , _ , s , pv ← small-step-expr new-state expr
+  _ , _ , s , e  ← do-steps {n} fuel s pv
+  r              ← is-evaluated e
+  value-to-expr fuel s (lookup r s)
+  where
+    value-to-expr : {n : Nat} → Nat → State n → Value n → Maybe Expr
+    value-to-expr zero _ _              = NONE
+    value-to-expr _ s (atom x)          = just (atom x)
+    value-to-expr _ s (number x)        = just (number x)
+    value-to-expr (suc f) s (pair r r₁) = do
+      e  ← value-to-expr f s (lookup r s)
+      e₁ ← value-to-expr f s (lookup r₁ s)
+      just $ pair e e₁
+    value-to-expr (suc f) s (quot r)      = map quot      (value-to-expr f s (lookup r s))
+    value-to-expr (suc f) s (quasiquot r) = map quasiquot (value-to-expr f s (lookup r s))
+    value-to-expr (suc f) s (unquot r)    = map unquot    (value-to-expr f s (lookup r s))
+    value-to-expr _       s (lam _ _)     = just (atom "lambda")
+    value-to-expr _       s (mac _ _)     = just (atom "macro")
+    value-to-expr _       s (builtin _)   = just (atom "builtin")
+
+    do-steps : {n : Nat} → Nat → State n → PartialValue n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
+    do-steps {n} _ s (evaluated x) = just (n , base n , s , evaluated x)
+    do-steps zero _ _ = nothing
+    do-steps {n} (suc fuel) s values = do
+      n , p , s , values ← small-step s values
+      n , q , s , values ← do-steps fuel s values
+      just (n , trans-less p q , s , values)
+
+    is-evaluated : {n : Nat} → PartialValue n → Maybe (Ref n)
+    is-evaluated (evaluated x) = just x
+    is-evaluated _ = nothing
+
 
 BuiltinSig : Nat → Set
 BuiltinSig n = State n → List Expr → Maybe $ Σ Nat (λ m → (n ≤ m) × State m × Value m)
@@ -241,20 +296,3 @@ declare-builtin-impl s e = NONE
 
 match-builtin-impl : {n : Nat} → BuiltinSig n
 match-builtin-impl s e = NONE
-
-new-state : State 5
-new-state = state
-  ( (builtin lambda-builtin)
-  ∷ (builtin macro-builtin)
-  ∷ (builtin set-builtin)
-  ∷ (builtin declare-builtin)
-  ∷ (builtin match-builtin)
-  ∷ []
-  )
-  (( ("lambda"  , ref zero)
-   ∷ ("macro"   , ref (suc zero))
-   ∷ ("set"     , ref (suc (suc zero)))
-   ∷ ("declare" , ref (suc (suc (suc zero))))
-   ∷ ("match"   , ref (suc (suc (suc (suc zero)))))
-   ∷ []
-  ) ∷ [])
