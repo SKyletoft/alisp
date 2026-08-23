@@ -51,6 +51,7 @@
 
 					rlwrap
 					custom-agda
+					ghc
 				];
 
 				alisp-unwrapped = rustPlatform.buildRustPackage {
