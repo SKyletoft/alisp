@@ -35,17 +35,27 @@ data Value (n : Nat) : Set where
   lam       : List String → List Expr → Value n
   mac       : List String → List Expr → Value n
 
-data PartialValue (n : Nat) : Set where
-  evaluated   : Ref n → PartialValue n
-  unevaluated : Expr → PartialValue n
-  p-fun       : List (PartialValue n) → PartialValue n
-  p-mac       : List String → List (PartialValue n) → PartialValue n
-  p-pair      : PartialValue n → PartialValue n → PartialValue n
-  p-quasiquot : PartialValue n → PartialValue n
+mutual
+  data PartialValue (n : Nat) : Set where
+    evaluated   : Ref n → PartialValue n
+    unevaluated : Expr → PartialValue n
+    p-fun       : PartialValues n → PartialValue n
+    p-mac       : List String → PartialValues n → PartialValue n
+    p-pair      : PartialValue n → PartialValue n → PartialValue n
+    p-quasiquot : PartialValue n → PartialValue n
+
+  PartialValues : Nat → Set
+  PartialValues n = List (PartialValue n)
+
+Heap : Nat → Set
+Heap n = Vec (Value n) n
+
+Scopes : Nat → Set
+Scopes n = NonEmptyList (List (String × Ref n))
 
 data State (n : Nat) : Set where
-  state : Vec (Value n) n →
-          NonEmptyList (List (String × Ref n)) → State n
+  state : Heap n →
+          Scopes n → State n
 
 weaken-value-suc : {n : Nat} → Value n → Value (suc n)
 weaken-value-suc (atom x)               = atom x
