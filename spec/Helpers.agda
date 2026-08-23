@@ -52,10 +52,10 @@ to-vec (x ∷ xs) = x ∷ to-vec xs
 
 record Monad (F : Set → Set) : Set₁ where
   field
-    return : {a : Set} → a → F a
-    _>>=_  : {a b : Set} → F a → (a → F b) → F b
-    _<$>_  : {a b : Set} → (a → b) → F a → F b
-    _<*>_  : {a b : Set} → F (a → b) → F a → F b
+    return : {a : Set}   → a         → F a
+    _>>=_  : {a b : Set} → F a       → (a → F b) → F b
+    _<$>_  : {a b : Set} → (a → b)   → F a       → F b
+    _<*>_  : {a b : Set} → F (a → b) → F a       → F b
 open Monad {{...}}
 
 _>>_ : {F : Set → Set} {{ r : Monad F }} {a b : Set} → F a → F b → F b
@@ -190,7 +190,7 @@ trans-less (base b) q = q
 trans-less (ind p) (base b) = ind p
 trans-less (ind p) (ind q) = ind (trans-less (ind p) q)
 
-_!!_ : {A : Set} {n : Nat} → Vec A n → Fin n → A
+_!!_ : {a : Set} {n : Nat} → Vec a n → Fin n → a
 (x ∷ xs) !! zero = x
 (x ∷ xs) !! suc i = xs !! i
 
