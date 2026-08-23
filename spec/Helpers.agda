@@ -69,10 +69,6 @@ f =<< x = x >>= f
 map : {F : Set → Set} {{ r : Monad F }} {a b : Set} → (a → b) → F a → F b
 map = _<$>_
 
-data Identity (a : Set) : Set where
-  identity : a → Identity a
-{-# COMPILE GHC Identity = data Identity (Identity) #-}
-
 replicate : {n : Nat} {a : Set} → a → Vec a n
 replicate {zero} _ = []
 replicate {suc n} x = x ∷ replicate {n} x
@@ -148,15 +144,6 @@ instance
       v-ap : {n : Nat} → {a b : Set} → Vec (a → b) n → Vec a n → Vec b n
       v-ap [] [] = []
       v-ap (f ∷ fs) (x ∷ xs) = f x ∷ v-ap fs xs
-
-  Identity-Monad : Monad Identity
-  Monad.return Identity-Monad = identity
-  Monad._>>=_ Identity-Monad = λ where
-    (identity x) f → f x
-  Monad._<$>_ Identity-Monad = λ where
-    f (identity x) → identity (f x)
-  Monad._<*>_ Identity-Monad = λ where
-    (identity f) (identity x) → identity (f x)
 
 from-nat : (n : Nat) → Fin (suc n)
 from-nat zero = zero
