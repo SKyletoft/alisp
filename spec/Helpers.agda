@@ -30,8 +30,11 @@ data Vec (a : Set) : Nat → Set where
   _∷_ : {n : Nat} (x : a) → Vec a n → Vec a (suc n)
 {-# COMPILE GHC Vec = data [] (:) #-}
 
-data NonEmptyList (a : Set) : Set where
-  _∷_ : a → List a → NonEmptyList a
+record NonEmptyList (a : Set) : Set where
+  constructor _∷_
+  field
+    head : a
+    tail : List a
 {-# COMPILE GHC NonEmptyList = data (:) #-}
 
 data Fin : Nat → Set where
