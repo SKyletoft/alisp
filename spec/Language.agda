@@ -16,8 +16,16 @@ NONE : {a : Set} → Maybe a
 NONE = nothing
 
 mutual
-  data Ref (n : Nat) : Set where
-    ref : Fin n → Ref n
+  record State (n : Nat) : Set where
+    constructor state
+    field
+      heap   : Heap n
+      scopes : Scopes n
+
+  record Ref (n : Nat) : Set where
+    constructor ref
+    field
+      ref : Fin n
 
   data Expr : Set where
     atom      : String → Expr
@@ -61,10 +69,6 @@ mutual
 
   Scopes : Nat → Set
   Scopes n = NonEmptyList (List (String × Ref n))
-
-  data State (n : Nat) : Set where
-    state : Heap n →
-            Scopes n → State n
 
 weaken-value-suc : {n : Nat} → Value n → Value (suc n)
 weaken-value-suc (atom x)               = atom x
