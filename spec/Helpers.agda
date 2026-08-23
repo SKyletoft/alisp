@@ -17,6 +17,12 @@ indb n = ind (base n)
 data _×_ (a b : Set) : Set where
   _,_ : a → b → a × b
 
+fst : {a b : Set} → a × b → a
+fst (x , _) = x
+
+snd : {a b : Set} → a × b → b
+snd (_ , x) = x
+
 infixr 2 _×_
 infixr 4 _,_
 
