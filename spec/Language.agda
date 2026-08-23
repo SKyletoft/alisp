@@ -151,19 +151,20 @@ extract-args s r [] with lookup r s
 mutual
   small-step : {n : Nat} → State n → PartialValue n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
   small-step {n} s (evaluated x) = just (n , base n , s , evaluated x)
-  small-step s (p-fun es) = do
-    m , p , heap , scopes , es ← case small-step-many s es returning Maybe (Nat × ? × ? × ? × ? × ? × ?) of \{
-        (just (m , p , s@(state heap (ss ∷ sss ∷ scopes)) , es)) → just (m , p , heap , ss , sss , scopes , es)
-        _ → nothing
   small-step {n} s (unevaluated x) = small-step-expr s x
+  small-step {n} s (p-fun es) = do
+    m , p , heap , all-scopes , popped-scopes , es ← case small-step-many s es of λ
+      { (just (m , p , s@(state heap all-scopes@(ss ∷ sss ∷ scopes)) , es)) →
+        -- Agda cannot figure out which _,_ without an explicit signature, _∋_ doesn't work either
+        let popped-scopes = sss ∷ scopes
+            ret : Σ Nat (λ m →  n ≤ m × Heap m × Scopes m × Scopes m × List (PartialValue m))
+            ret = m , p , heap , all-scopes , popped-scopes , es
+        in just ret
+      ; _ → nothing
       }
-    case return-value es of \{
-        (just r) →
-          -- pop stack, return
-          just (m , p , state heap scopes , evaluated r)
-        ; nothing →
-          -- continue function eval
-          just (m , p , state heap  , p-fun es)
+    case return-value es of λ
+      { (just r) → just (m , p , state heap popped-scopes , evaluated r)
+      ; nothing  → just (m , p , state heap all-scopes    , p-fun es)
       }
     where
       return-value : {n : Nat} → PartialValues n → Maybe (Ref n)
