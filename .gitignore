@@ -3,3 +3,6 @@ result
 .envrc
 /.agent-shell/
 **.agdai
+spec/_build
+**.o
+**.hi
