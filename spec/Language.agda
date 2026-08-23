@@ -6,7 +6,7 @@ open import Agda.Builtin.Maybe
 open import Agda.Builtin.Nat
 open import Agda.Builtin.Sigma
 open import Agda.Builtin.String
-open import Function using (case_of_; case_returning_of_)
+open import Function using (case_of_; case_returning_of_; _$_)
 open import Helpers
 
 open Monad {{...}}
@@ -210,3 +210,21 @@ eval {n} s ls =
   let pvs : PartialValues n
       pvs = {!!}
    in {!!}
+
+Builtin : Nat → Set
+Builtin n = State n → List Expr → Maybe $ Σ Nat (λ m → (n ≤ m) × State m × Value m)
+
+lambda-builtin : {n : Nat} → Builtin n
+lambda-builtin s e = {!!}
+
+macro-builtin : {n : Nat} → Builtin n
+macro-builtin s e = {!!}
+
+set-builtin : {n : Nat} → Builtin n
+set-builtin s e = {!!}
+
+declare-builtin : {n : Nat} → Builtin n
+declare-builtin s e = {!!}
+
+match-builtin : {n : Nat} → Builtin n
+match-builtin s e = {!!}
