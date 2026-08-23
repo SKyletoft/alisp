@@ -151,24 +151,11 @@ extract-args s r [] with lookup r s
 mutual
   small-step : {n : Nat} → State n → PartialValue n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
   small-step {n} s (evaluated x) = just (n , base n , s , evaluated x)
-  small-step {n} s (unevaluated (atom x)) = do
-    r ← find x s
-    just (n , base n , s , evaluated r)
-  small-step {n} s (unevaluated (number x)) with insert (number x) s
-  ... | m , p , s' , r = just (m , p , s' , evaluated r)
-  small-step {n} s (unevaluated (pair x x₁)) = just (n , base n , s , p-pair (unevaluated x) (unevaluated x₁))
-  small-step {n} s (unevaluated (quot x)) with insert x s
-  ... | m , p , s' , r = just (m , p , s' , evaluated r)
-  small-step {n} s (unevaluated (quasiquot x)) = just (n , base n , s , p-quasiquot (unevaluated x))
-  small-step {n} s (unevaluated (unquot x)) = nothing
-  small-step {n} s (unevaluated x@(lam _ _)) with insert x s
-  ... | m , p , s' , r = just (m , p , s' , evaluated r)
-  small-step {n} s (unevaluated x@(mac _ _)) with insert x s
-  ... | m , p , s' , r = just (m , p , s' , evaluated r)
   small-step s (p-fun es) = do
     m , p , heap , scopes , es ← case small-step-many s es returning Maybe (Nat × ? × ? × ? × ? × ? × ?) of \{
         (just (m , p , s@(state heap (ss ∷ sss ∷ scopes)) , es)) → just (m , p , heap , ss , sss , scopes , es)
         _ → nothing
+  small-step {n} s (unevaluated x) = small-step-expr s x
       }
     case return-value es of \{
         (just r) →
@@ -210,6 +197,22 @@ mutual
     just (m , p , s' , e' ∷ map (weaken-partial {p = p}) es)
 
 eval : {n : Nat} → State n → List Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × List (PartialValue m)))
+  small-step-expr : {n : Nat} → State n → Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
+  small-step-expr {n} s (atom x) = do
+    r ← find x s
+    just (n , base n , s , evaluated r)
+  small-step-expr {n} s (number x) with insert (number x) s
+  ... | m , p , s' , r = just (m , p , s' , evaluated r)
+  small-step-expr {n} s (pair x x₁) = just (n , base n , s , p-pair (unevaluated x) (unevaluated x₁))
+  small-step-expr {n} s (quot x) with insert x s
+  ... | m , p , s' , r = just (m , p , s' , evaluated r)
+  small-step-expr {n} s (quasiquot x) = just (n , base n , s , p-quasiquot (unevaluated x))
+  small-step-expr {n} s (unquot x) = nothing
+  small-step-expr {n} s x@(lam _ _) with insert x s
+  ... | m , p , s' , r = just (m , p , s' , evaluated r)
+  small-step-expr {n} s x@(mac _ _) with insert x s
+  ... | m , p , s' , r = just (m , p , s' , evaluated r)
+
 eval {n} s ls =
   let pvs : List (PartialValue n)
       pvs = {!!}
