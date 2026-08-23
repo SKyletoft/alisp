@@ -11,28 +11,36 @@ open import Helpers
 
 open Monad {{...}}
 
-data Ref (n : Nat) : Set where
-  ref : Fin n → Ref n
-
-data Expr : Set where
-  atom      : String → Expr
-  number    : Nat → Expr
-  pair      : Expr → Expr → Expr
-  quot      : Expr → Expr
-  quasiquot : Expr → Expr
-  unquot    : Expr → Expr
-
-data Value (n : Nat) : Set where
-  atom      : String → Value n
-  number    : Nat → Value n
-  pair      : Ref n → Ref n → Value n
-  quot      : Ref n → Value n
-  quasiquot : Ref n → Value n
-  unquot    : Ref n → Value n
-  lam       : List String → List Expr → Value n
-  mac       : List String → List Expr → Value n
-
 mutual
+  data Ref (n : Nat) : Set where
+    ref : Fin n → Ref n
+
+  data Expr : Set where
+    atom      : String → Expr
+    number    : Nat → Expr
+    pair      : Expr → Expr → Expr
+    quot      : Expr → Expr
+    quasiquot : Expr → Expr
+    unquot    : Expr → Expr
+
+  data Value (n : Nat) : Set where
+    atom      : String → Value n
+    number    : Nat → Value n
+    pair      : Ref n → Ref n → Value n
+    quot      : Ref n → Value n
+    quasiquot : Ref n → Value n
+    unquot    : Ref n → Value n
+    lam       : List String → List Expr → Value n
+    mac       : List String → List Expr → Value n
+    builtin   : Builtin → Value n
+
+  data Builtin : Set where
+    lambda-builtin : Builtin
+    macro-builtin : Builtin
+    set-builtin : Builtin
+    declare-builtin : Builtin
+    match-builtin : Builtin
+
   data PartialValue (n : Nat) : Set where
     evaluated   : Ref n → PartialValue n
     unevaluated : Expr → PartialValue n
@@ -44,15 +52,15 @@ mutual
   PartialValues : Nat → Set
   PartialValues n = List (PartialValue n)
 
-Heap : Nat → Set
-Heap n = Vec (Value n) n
+  Heap : Nat → Set
+  Heap n = Vec (Value n) n
 
-Scopes : Nat → Set
-Scopes n = NonEmptyList (List (String × Ref n))
+  Scopes : Nat → Set
+  Scopes n = NonEmptyList (List (String × Ref n))
 
-data State (n : Nat) : Set where
-  state : Heap n →
-          Scopes n → State n
+  data State (n : Nat) : Set where
+    state : Heap n →
+            Scopes n → State n
 
 weaken-value-suc : {n : Nat} → Value n → Value (suc n)
 weaken-value-suc (atom x)               = atom x
@@ -63,6 +71,7 @@ weaken-value-suc (quasiquot (ref i))    = quasiquot (ref (weaken-fin i))
 weaken-value-suc (unquot (ref i))       = unquot (ref (weaken-fin i))
 weaken-value-suc (lam x x₁)             = lam x x₁
 weaken-value-suc (mac x x₁)             = mac x x₁
+weaken-value-suc (builtin x)            = builtin x
 
 weaken-value : {n m : Nat} → {p : n ≤ m} → Value n → Value m
 weaken-value {n} {m} {base b} v    = v
@@ -211,20 +220,37 @@ eval {n} s ls =
       pvs = {!!}
    in {!!}
 
-Builtin : Nat → Set
-Builtin n = State n → List Expr → Maybe $ Σ Nat (λ m → (n ≤ m) × State m × Value m)
+BuiltinSig : Nat → Set
+BuiltinSig n = State n → List Expr → Maybe $ Σ Nat (λ m → (n ≤ m) × State m × Value m)
 
-lambda-builtin : {n : Nat} → Builtin n
-lambda-builtin s e = {!!}
+lambda-builtin-impl : {n : Nat} → BuiltinSig n
+lambda-builtin-impl s e = {!!}
 
-macro-builtin : {n : Nat} → Builtin n
-macro-builtin s e = {!!}
+macro-builtin-impl : {n : Nat} → BuiltinSig n
+macro-builtin-impl s e = {!!}
 
-set-builtin : {n : Nat} → Builtin n
-set-builtin s e = {!!}
+set-builtin-impl : {n : Nat} → BuiltinSig n
+set-builtin-impl s e = {!!}
 
-declare-builtin : {n : Nat} → Builtin n
-declare-builtin s e = {!!}
+declare-builtin-impl : {n : Nat} → BuiltinSig n
+declare-builtin-impl s e = {!!}
 
-match-builtin : {n : Nat} → Builtin n
-match-builtin s e = {!!}
+match-builtin-impl : {n : Nat} → BuiltinSig n
+match-builtin-impl s e = {!!}
+
+new-state : State 5
+new-state = state
+  ( (builtin lambda-builtin)
+  ∷ (builtin macro-builtin)
+  ∷ (builtin set-builtin)
+  ∷ (builtin declare-builtin)
+  ∷ (builtin match-builtin)
+  ∷ []
+  )
+  (( ("lambda"  , ref zero)
+   ∷ ("macro"   , ref (suc zero))
+   ∷ ("set"     , ref (suc (suc zero)))
+   ∷ ("declare" , ref (suc (suc (suc zero))))
+   ∷ ("match"   , ref (suc (suc (suc (suc zero)))))
+   ∷ []
+  ) ∷ [])
