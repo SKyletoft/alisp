@@ -6,7 +6,7 @@ open import Agda.Builtin.Maybe
 open import Agda.Builtin.Nat
 open import Agda.Builtin.Sigma
 open import Agda.Builtin.String
-open import Function using (case_of_; case_returning_of_; _$_)
+open import Function using (case_of_; _$_)
 open import Helpers
 
 open Monad {{...}}
