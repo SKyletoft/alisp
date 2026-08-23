@@ -1,4 +1,3 @@
--- {-# OPTIONS --allow-unsolved-metas #-}
 module Language where
 
 open import Agda.Builtin.Bool
