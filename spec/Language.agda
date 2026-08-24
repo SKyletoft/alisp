@@ -128,9 +128,9 @@ mutual
      in m , p , s , unquot r
 
   insert : {n : Nat} → Expr → State n → Σ Nat (λ m → (n ≤ m) × State m × Ref m)
-  insert {n} e s with expr-to-value s e
-  ... | m , p , state vals names , val =
-    let f = map λ { (str , (ref fin)) → str , ref (weaken-fin fin) }
+  insert {n} e s =
+    let m , p , state vals names , val = expr-to-value s e
+        f = map λ { (str , (ref fin)) → str , ref (weaken-fin fin) }
         vals = weaken-value {p = indb m} val
               ∷ map (weaken-value {p = indb m}) vals
         names = map f names
