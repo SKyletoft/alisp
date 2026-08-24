@@ -51,7 +51,14 @@
 
 					rlwrap
 					custom-agda
-					ghc
+					(ghc.withPackages(p: with p; [
+						QuickCheck
+						haskell-language-server
+						fourmolu
+						BNFC
+						alex
+						happy
+					]))
 				];
 
 				alisp-unwrapped = rustPlatform.buildRustPackage {
