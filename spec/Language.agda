@@ -175,8 +175,8 @@ mutual
   small-step {n} s (p-fun es) = do
     m , p , heap , all-scopes , popped-scopes , es ← case small-step-many s es of λ
       { (just (m , p , s@(state heap all-scopes@(ss ∷ sss ∷ scopes)) , es)) →
-        -- Agda cannot figure out which _,_ without an explicit signature, _∋_ doesn't work either
         let popped-scopes = sss ∷ scopes
+            -- Agda cannot figure out which _,_ without an explicit signature, _∋_ doesn't work either
             ret : Σ Nat (λ m →  n ≤ m × Heap m × Scopes m × Scopes m × List (PartialValue m))
             ret = m , p , heap , all-scopes , popped-scopes , es
          in just ret
