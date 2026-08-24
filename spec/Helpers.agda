@@ -157,11 +157,6 @@ weaken-fin-many : {n m : Nat} → {proof : n ≤ m} → Fin n → Fin m
 weaken-fin-many {n} {m} {base b} f = f
 weaken-fin-many {n} {suc m} {ind p} f = weaken-fin (weaken-fin-many {n} {m} {p} f)
 
-to-nat-weaken : {n : Nat} (f : Fin n) →
-               to-nat f ≡ to-nat (weaken-fin f)
-to-nat-weaken zero = refl
-to-nat-weaken (suc f) = cong suc (to-nat-weaken f)
-
 weaken-coerce : {n : Nat} (f : Fin n) → Fin (to-nat f) → Fin n
 weaken-coerce zero ()
 weaken-coerce (suc f) zero = zero
