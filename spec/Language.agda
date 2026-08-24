@@ -223,11 +223,11 @@ mutual
     just $ n , base n , s , evaluated r
   small-step-expr {n} s (number x) =
     let m , p , s' , r = insert (number x) s
-    in just $ m , p , s' , evaluated r
+     in just $ m , p , s' , evaluated r
   small-step-expr {n} s (pair x x₁) = just (n , base n , s , p-pair (unevaluated x) (unevaluated x₁))
   small-step-expr {n} s (quot x)    =
     let m , p , s' , r = insert x s
-    in just $ m , p , s' , evaluated r
+     in just $ m , p , s' , evaluated r
   small-step-expr {n} s (quasiquot x) = just (n , base n , s , p-quasiquot (unevaluated x))
   small-step-expr {n} s (unquot x)    = nothing
 
