@@ -150,7 +150,7 @@ mutual
      in m , proof , s , r
 
 lookup : {n : Nat} (r : Ref n) → State n → Value n
-lookup (ref r) (state vals _ ) = vals !! r
+lookup (ref r) (state vals _ ) = vals !!! r
 
 find : {n : Nat} → String → State n → Maybe (Ref n)
 find {n} s (state _ (current-scope ∷ _)) = find-where (primStringEquality s) current-scope

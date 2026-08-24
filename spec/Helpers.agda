@@ -176,6 +176,18 @@ _!!_ : {a : Set} {n : Nat} → Vec a n → Fin n → a
 (x ∷ xs) !! zero = x
 (x ∷ xs) !! suc i = xs !! i
 
+_!!!_ : {a : Set} {n : Nat} → Vec a n → Fin n → a
+_!!!_ {n = n} xs i = xs !! (reverse-fin n i)
+  where
+    reverse-fin : (n : Nat) → Fin n → Fin n
+    reverse-fin (suc n) zero    = from-nat n
+    reverse-fin (suc n) (suc i) = weaken-fin (reverse-fin n i)
+
+index-backwards : (1 ∷ 2 ∷ 3 ∷ []) !!! zero ≡ 3
+                × (1 ∷ 2 ∷ 3 ∷ []) !!! (suc zero) ≡ 2
+                × (1 ∷ 2 ∷ 3 ∷ []) !!! (suc (suc zero)) ≡ 1
+index-backwards = refl , refl , refl
+
 set-at : {a : Set} {n : Nat} → a → Vec a n → Fin n → Vec a n
 set-at x (y ∷ ys) zero = x ∷ ys
 set-at x (y ∷ ys) (suc i) = y ∷ set-at x ys i
