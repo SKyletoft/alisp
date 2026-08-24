@@ -4,6 +4,7 @@ open import Agda.Builtin.Bool
 open import Agda.Builtin.List
 open import Agda.Builtin.Maybe
 open import Agda.Builtin.Nat
+open import Agda.Builtin.Sigma
 open import Data.List.Base using (_++_)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; subst)
 
@@ -14,16 +15,10 @@ data _≤_ : Nat → Nat → Set where
 indb : (n : Nat) → n ≤ (suc n)
 indb n = ind (base n)
 
-record _×_ (a b : Set) : Set where
-  constructor _,_
-  field
-    fst : a
-    snd : b
-
-open _×_ public
+_×_ : Set → Set → Set
+a × b = Σ a (λ _ → b)
 
 infixr 2 _×_
-infixr 4 _,_
 
 data Vec (a : Set) : Nat → Set where
   []  : Vec a zero
