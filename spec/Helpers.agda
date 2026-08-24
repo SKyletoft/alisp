@@ -28,14 +28,12 @@ infixr 4 _,_
 data Vec (a : Set) : Nat → Set where
   []  : Vec a zero
   _∷_ : {n : Nat} (x : a) → Vec a n → Vec a (suc n)
-{-# COMPILE GHC Vec = data [] (:) #-}
 
 record NonEmptyList (a : Set) : Set where
   constructor _∷_
   field
     head : a
     tail : List a
-{-# COMPILE GHC NonEmptyList = data (:) #-}
 
 data Fin : Nat → Set where
   zero : {n : Nat} → Fin (suc n)
