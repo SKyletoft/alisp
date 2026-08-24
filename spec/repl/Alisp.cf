@@ -1,0 +1,10 @@
+EAtom.    Expr ::= Ident ;
+ENumber.  Expr ::= Integer ;
+EString.  Expr ::= String ;
+EList.    Expr ::= "(" [Expr] ")" ;
+EDotted.  Expr ::= "(" Expr "." Expr ")" ;
+EQuote.   Expr ::= "'" Expr ;
+EQuasi.   Expr ::= "`" Expr ;
+EUnquote. Expr ::= "," Expr ;
+
+separator Expr "" ;
