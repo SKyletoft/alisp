@@ -65,20 +65,6 @@ f =<< x = x >>= f
 map : {F : Set → Set} {{ r : Monad F }} {a b : Set} → (a → b) → F a → F b
 map = _<$>_
 
-replicate : {n : Nat} {a : Set} → a → Vec a n
-replicate {zero} _ = []
-replicate {suc n} x = x ∷ replicate {n} x
-
-v-head : {n : Nat} {a : Set} → Vec a (suc n) → a
-v-head (x ∷ _) = x
-
-v-tail : {n : Nat} {a : Set} → Vec a (suc n) → Vec a n
-v-tail (_ ∷ xs) = xs
-
-bind-vec : {n : Nat} {a b : Set} → Vec a n → (a → Vec b n) → Vec b n
-bind-vec [] f = []
-bind-vec (x ∷ xs) f = v-head (f x) ∷ bind-vec xs (λ y → v-tail (f y))
-
 instance
   Maybe-Monad : Monad Maybe
   Monad.return Maybe-Monad = just
@@ -129,7 +115,22 @@ instance
 
   Vec-Monad : {n : Nat} → Monad (λ a → Vec a n)
   Monad.return (Vec-Monad {n}) = replicate {n}
+    where
+      replicate : {n : Nat} {a : Set} → a → Vec a n
+      replicate {zero} _ = []
+      replicate {suc n} x = x ∷ replicate {n} x
   Monad._>>=_ (Vec-Monad {n}) = bind-vec {n}
+    where
+      v-head : {n : Nat} {a : Set} → Vec a (suc n) → a
+      v-head (x ∷ _) = x
+
+      v-tail : {n : Nat} {a : Set} → Vec a (suc n) → Vec a n
+      v-tail (_ ∷ xs) = xs
+
+      bind-vec : {n : Nat} {a b : Set} → Vec a n → (a → Vec b n) → Vec b n
+      bind-vec [] f = []
+      bind-vec (x ∷ xs) f = v-head (f x) ∷ bind-vec xs (λ y → v-tail (f y))
+
   Monad._<$>_ (Vec-Monad {n}) = v-map
     where
       v-map : {n : Nat} → {a b : Set} → (a → b) → Vec a n → Vec b n
