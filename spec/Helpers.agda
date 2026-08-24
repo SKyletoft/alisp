@@ -130,7 +130,6 @@ instance
       bind-vec : {n : Nat} {a b : Set} → Vec a n → (a → Vec b n) → Vec b n
       bind-vec [] f = []
       bind-vec (x ∷ xs) f = v-head (f x) ∷ bind-vec xs (λ y → v-tail (f y))
-
   Monad._<$>_ (Vec-Monad {n}) = v-map
     where
       v-map : {n : Nat} → {a b : Set} → (a → b) → Vec a n → Vec b n
