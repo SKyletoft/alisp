@@ -15,6 +15,7 @@ an atom in the parser, but this is what we're working with here. The
 parser will never generate lambda or macro nodes, but other
 preprocessing steps may.
 
+```bnfc
 expr ::= atom | number | pair | quote | quasiquote | unquote | lambda | macro
 atom ::= string
 number ::= natural
@@ -24,6 +25,7 @@ quasiquote ::= "`" expr
 unquote ::= "," expr
 lambda ::= atom* expr* expr
 macro ::= atom* expr* expr
+```
 
 # Values
 ALISP is homoiconic, meaning code is data and vice-versa. The AST
