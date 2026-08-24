@@ -4,5 +4,10 @@ result
 /.agent-shell/
 **.agdai
 spec/_build
+spec/repl/_build
+spec/repl/Alisp/
+spec/repl/MAlonzo
+spec/repl/repl
 **.o
 **.hi
+**.stamp
