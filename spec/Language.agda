@@ -67,8 +67,11 @@ mutual
   Heap : Nat → Set
   Heap n = Vec (Value n) n
 
+  Scope : Nat → Set
+  Scope n = List (String × Ref n)
+
   Scopes : Nat → Set
-  Scopes n = NonEmptyList (List (String × Ref n))
+  Scopes n = NonEmptyList (Scope n)
 
 weaken-value-suc : {n : Nat} → Value n → Value (suc n)
 weaken-value-suc (atom x)               = atom x
@@ -107,6 +110,13 @@ weaken-partial {n} {suc m} {ind p} v = weaken-partial-suc (weaken-partial {n} {m
 
 weaken-ref : {n m : Nat} → {p : n ≤ m} → Ref n → Ref m
 weaken-ref {p = p} (ref fin) = ref (weaken-fin-many {proof = p} fin)
+
+weaken-scope : {n m : Nat} → {p : n ≤ m} → Scope n → Scope m
+weaken-scope [] = []
+weaken-scope {p = p} ((s , r) ∷ ss) = (s , weaken-ref {p = p} r) ∷ weaken-scope {p = p} ss
+
+weaken-scopes : {n m : Nat} → {p : n ≤ m} → Scopes n → Scopes m
+weaken-scopes {p = p} = map (weaken-scope {p = p})
 
 mutual
   expr-to-value : {n : Nat} → State n → Expr → Σ Nat (λ m → (n ≤ m) × State m × Value m)
@@ -151,6 +161,24 @@ mutual
 
 lookup : {n : Nat} (r : Ref n) → State n → Value n
 lookup (ref r) (state vals _ ) = vals !!! r
+
+value-to-expr : {n : Nat} → Nat → State n → Value n → Maybe Expr
+value-to-expr zero _ _              = NONE
+value-to-expr _ s (atom x)          = just (atom x)
+value-to-expr _ s (number x)        = just (number x)
+value-to-expr (suc f) s (pair r r₁) = do
+  e  ← value-to-expr f s (lookup r s)
+  e₁ ← value-to-expr f s (lookup r₁ s)
+  just $ pair e e₁
+value-to-expr (suc f) s (quot r)      = map quot      (value-to-expr f s (lookup r s))
+value-to-expr (suc f) s (quasiquot r) = map quasiquot (value-to-expr f s (lookup r s))
+value-to-expr (suc f) s (unquot r)    = map unquot    (value-to-expr f s (lookup r s))
+value-to-expr _       s (lam _ _)     = just (atom "lambda")
+value-to-expr _       s (mac _ _)     = just (atom "macro")
+value-to-expr _       s (builtin _)   = just (atom "builtin")
+
+ref-to-expr : {n : Nat} → State n → Ref n → Maybe Expr
+ref-to-expr {n} s r = value-to-expr n s (lookup r s)
 
 find : {n : Nat} → String → State n → Maybe (Ref n)
 find {n} s (state _ (current-scope ∷ _)) = find-where (primStringEquality s) current-scope
@@ -231,22 +259,27 @@ mutual
   small-step-expr {n} s (quasiquot x) = just (n , base n , s , p-quasiquot (unevaluated x))
   small-step-expr {n} s (unquot x)    = nothing
 
-new-state : State 5
-new-state = state
-  ( (builtin lambda-builtin)
+new-heap : Heap 5
+new-heap =
+  (builtin lambda-builtin)
   ∷ (builtin macro-builtin)
   ∷ (builtin set-builtin)
   ∷ (builtin declare-builtin)
   ∷ (builtin match-builtin)
   ∷ []
-  )
-  (( ("lambda"  , ref zero)
+
+new-scope : Scope 5
+new-scope =
+  ( ("lambda"  , ref zero)
    ∷ ("macro"   , ref (suc zero))
    ∷ ("set"     , ref (suc (suc zero)))
    ∷ ("declare" , ref (suc (suc (suc zero))))
    ∷ ("match"   , ref (suc (suc (suc (suc zero)))))
    ∷ []
-  ) ∷ [])
+  )
+
+new-state : State 5
+new-state = state new-heap (new-scope ∷ [])
 
 eval : Nat → Expr → Maybe Expr
 eval fuel expr = do
@@ -255,21 +288,6 @@ eval fuel expr = do
   r              ← is-evaluated e
   value-to-expr fuel s (lookup r s)
   where
-    value-to-expr : {n : Nat} → Nat → State n → Value n → Maybe Expr
-    value-to-expr zero _ _              = NONE
-    value-to-expr _ s (atom x)          = just (atom x)
-    value-to-expr _ s (number x)        = just (number x)
-    value-to-expr (suc f) s (pair r r₁) = do
-      e  ← value-to-expr f s (lookup r s)
-      e₁ ← value-to-expr f s (lookup r₁ s)
-      just $ pair e e₁
-    value-to-expr (suc f) s (quot r)      = map quot      (value-to-expr f s (lookup r s))
-    value-to-expr (suc f) s (quasiquot r) = map quasiquot (value-to-expr f s (lookup r s))
-    value-to-expr (suc f) s (unquot r)    = map unquot    (value-to-expr f s (lookup r s))
-    value-to-expr _       s (lam _ _)     = just (atom "lambda")
-    value-to-expr _       s (mac _ _)     = just (atom "macro")
-    value-to-expr _       s (builtin _)   = just (atom "builtin")
-
     do-steps : {n : Nat} → Nat → State n → PartialValue n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
     do-steps {n} _ s (evaluated x) = just (n , base n , s , evaluated x)
     do-steps zero _ _ = nothing
