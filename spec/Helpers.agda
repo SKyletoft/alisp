@@ -185,7 +185,7 @@ _!!!_ : {a : Set} {n : Nat} → Vec a n → Fin n → a
 _!!!_ {n = n} xs i = xs !! (reverse-fin n i)
 
 !!!-head : {a : Set} {n : Nat} (y : a) (ys : Vec a n) → (y ∷ ys) !!! from-nat n ≡ y
-!!!-head {n = n} y ys = trans (cong (_!!_ (y ∷ ys)) (reverse-fin-from-nat n)) refl
+!!!-head {n = n} y ys = trans (cong ((y ∷ ys) !!_) (reverse-fin-from-nat n)) refl
 
 index-backwards : (1 ∷ 2 ∷ 3 ∷ []) !!! zero ≡ 3
                 × (1 ∷ 2 ∷ 3 ∷ []) !!! (suc zero) ≡ 2
