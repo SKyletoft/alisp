@@ -6,7 +6,9 @@ open import Agda.Builtin.Maybe
 open import Agda.Builtin.Nat
 open import Agda.Builtin.Sigma
 open import Data.List.Base using (_++_)
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; subst)
+import Relation.Binary.PropositionalEquality as Eq
+open Eq
+open Eq.≡-Reasoning
 
 data _≤_ : Nat → Nat → Set where
   base : (b : Nat) → b ≤ b
@@ -171,12 +173,19 @@ _!!_ : {a : Set} {n : Nat} → Vec a n → Fin n → a
 (x ∷ xs) !! zero = x
 (x ∷ xs) !! suc i = xs !! i
 
+reverse-fin : (n : Nat) → Fin n → Fin n
+reverse-fin (suc n) zero    = from-nat n
+reverse-fin (suc n) (suc i) = weaken-fin (reverse-fin n i)
+
+reverse-fin-from-nat : (n : Nat) → reverse-fin (suc n) (from-nat n) ≡ zero
+reverse-fin-from-nat zero = refl
+reverse-fin-from-nat (suc n) = cong weaken-fin (reverse-fin-from-nat n)
+
 _!!!_ : {a : Set} {n : Nat} → Vec a n → Fin n → a
 _!!!_ {n = n} xs i = xs !! (reverse-fin n i)
-  where
-    reverse-fin : (n : Nat) → Fin n → Fin n
-    reverse-fin (suc n) zero    = from-nat n
-    reverse-fin (suc n) (suc i) = weaken-fin (reverse-fin n i)
+
+!!!-head : {a : Set} {n : Nat} (y : a) (ys : Vec a n) → (y ∷ ys) !!! from-nat n ≡ y
+!!!-head {n = n} y ys = trans (cong (_!!_ (y ∷ ys)) (reverse-fin-from-nat n)) refl
 
 index-backwards : (1 ∷ 2 ∷ 3 ∷ []) !!! zero ≡ 3
                 × (1 ∷ 2 ∷ 3 ∷ []) !!! (suc zero) ≡ 2

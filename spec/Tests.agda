@@ -19,13 +19,18 @@ nil = atom "nil"
 
 insert-value : {n : Nat} → State n → Value (suc n) → State (suc n)
 insert-value {n} (state heap scopes) v =
-  let p = indb n
-  in state (atom "x" ∷ map (weaken-value {p = p}) heap)
-           (weaken-scopes {p = p} scopes)
+  let f = map λ { (str , (ref fin)) → str , ref (weaken-fin fin) }
+  in state (atom "x" ∷ map (weaken-value {p = indb n}) heap)
+           (map f scopes)
 
-quot-inner :
- let final-state = insert-value new-state (atom "x")
-     final-expr = ref (from-nat 5)
- in (small-step new-state (unevaluated (quot x)) ≡ just ( 6 , indb 5 , final-state , evaluated final-expr))
-    × ref-to-expr final-state final-expr ≡ just x
-quot-inner = refl , refl
+quot-any-state : {n : Nat} (s : State n) →
+  small-step s (unevaluated (quot x))
+    ≡ just ( suc n , indb n , insert-value s (atom "x") , evaluated (ref (from-nat n)))
+  × ref-to-expr (insert-value s (atom "x")) (ref (from-nat n))
+    ≡ just x
+quot-any-state {n} s =
+  refl ,
+  trans
+    (cong (value-to-expr (suc n) (insert-value s (atom "x")))
+          (!!!-head (atom "x") (map (weaken-value {p = indb n}) (State.heap s))))
+    refl
