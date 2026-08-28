@@ -17,20 +17,21 @@ x = atom "x"
 nil : Expr
 nil = atom "nil"
 
-insert-value : {n : Nat} → State n → Value (suc n) → State (suc n)
-insert-value {n} (state heap scopes) v =
+infixr 5 _:h:_
+_:h:_ : {n : Nat} → Value (suc n) → State n → State (suc n)
+_:h:_ {n} v (state heap scopes) =
   let f = map λ { (str , (ref fin)) → str , ref (weaken-fin fin) }
-  in state (atom "x" ∷ map (weaken-value {p = indb n}) heap)
+  in state (v ∷ map (weaken-value {p = indb n}) heap)
            (map f scopes)
 
 quot-any-state : {n : Nat} (s : State n) →
   small-step s (unevaluated (quot x))
-    ≡ just ( suc n , indb n , insert-value s (atom "x") , evaluated (ref (from-nat n)))
-  × ref-to-expr (insert-value s (atom "x")) (ref (from-nat n))
+    ≡ just ( suc n , indb n , atom "x" :h: s , evaluated (ref (from-nat n)))
+  × ref-to-expr (atom "x" :h: s) (ref (from-nat n))
     ≡ just x
 quot-any-state {n} s =
   refl ,
   trans
-    (cong (value-to-expr (suc n) (insert-value s (atom "x")))
+    (cong (value-to-expr (suc n) (atom "x" :h: s))
           (!!!-head (atom "x") (map (weaken-value {p = indb n}) (State.heap s))))
     refl
