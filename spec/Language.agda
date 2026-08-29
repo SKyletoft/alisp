@@ -42,6 +42,7 @@ mutual
     quot      : Ref n → Value n
     quasiquot : Ref n → Value n
     unquot    : Ref n → Value n
+    ptr       : Ref n → Value n
     lam       : List String → List Expr → Value n
     mac       : List String → List Expr → Value n
     builtin   : Builtin → Value n
@@ -80,6 +81,7 @@ weaken-value-suc (pair (ref i) (ref j)) = pair (ref (weaken-fin i)) (ref (weaken
 weaken-value-suc (quot (ref i))         = quot (ref (weaken-fin i))
 weaken-value-suc (quasiquot (ref i))    = quasiquot (ref (weaken-fin i))
 weaken-value-suc (unquot (ref i))       = unquot (ref (weaken-fin i))
+weaken-value-suc (ptr (ref i))          = ptr (ref (weaken-fin i))
 weaken-value-suc (lam x x₁)             = lam x x₁
 weaken-value-suc (mac x x₁)             = mac x x₁
 weaken-value-suc (builtin x)            = builtin x
@@ -173,6 +175,7 @@ value-to-expr (suc f) s (pair r r₁) = do
 value-to-expr (suc f) s (quot r)      = map quot      (value-to-expr f s (lookup r s))
 value-to-expr (suc f) s (quasiquot r) = map quasiquot (value-to-expr f s (lookup r s))
 value-to-expr (suc f) s (unquot r)    = map unquot    (value-to-expr f s (lookup r s))
+value-to-expr (suc f) s (ptr r)       = value-to-expr f s (lookup r s)
 value-to-expr _       s (lam _ _)     = just (atom "lambda")
 value-to-expr _       s (mac _ _)     = just (atom "macro")
 value-to-expr _       s (builtin _)   = just (atom "builtin")
