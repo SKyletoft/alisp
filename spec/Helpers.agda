@@ -218,3 +218,10 @@ find-where f ((x , y) ∷ xs) with f x
 unwrap-or : {a : Set} → Maybe a → a → a
 unwrap-or (just x) _ = x
 unwrap-or nothing x = x
+
+transpose : {a : Set} → List (Maybe a) → Maybe (List a)
+transpose [] = just []
+transpose (nothing ∷ xs) = nothing
+transpose (just x ∷ xs) = do
+  xs ← transpose xs
+  return (x ∷ xs)
