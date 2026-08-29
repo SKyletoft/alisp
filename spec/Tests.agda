@@ -3,12 +3,13 @@ module Tests where
 open import Agda.Builtin.Maybe
 open import Agda.Builtin.List
 open import Agda.Builtin.Nat
+open import Agda.Builtin.String
 open import Agda.Builtin.Sigma
 open import Function using (case_of_; _$_)
 open import Language
 open import Helpers
 import Relation.Binary.PropositionalEquality as Eq
-open Eq
+open Eq hiding ([_])
 open Eq.≡-Reasoning
 
 x : Expr
@@ -16,6 +17,12 @@ x = atom "x"
 
 nil : Expr
 nil = atom "nil"
+
+[_] : {a : Set} → a → List a
+[ x ] = x ∷ []
+
+lambda : List String → Expr → Expr
+lambda xs body = {!!}
 
 infixr 5 _:h:_
 _:h:_ : {n : Nat} → Value (suc n) → State n → State (suc n)
@@ -25,7 +32,7 @@ _:h:_ {n} v (state heap scopes) =
            (map f scopes)
 
 quot-any-state : {n : Nat} (s : State n) →
-  small-step s (unevaluated (quot x))
+  small-step s (unevaluated $ quot x)
     ≡ just ( suc n , indb n , atom "x" :h: s , evaluated (ref (from-nat n)))
   × ref-to-expr (atom "x" :h: s) (ref (from-nat n))
     ≡ just x
@@ -35,3 +42,20 @@ quot-any-state {n} s =
     (cong (value-to-expr (suc n) (atom "x" :h: s))
           (!!!-head (atom "x") (map (weaken-value {p = indb n}) (State.heap s))))
     refl
+
+id-lambda : Expr
+id-lambda = (lambda [ "y" ] (atom "y"))
+
+lambda-eval : {n : Nat} (s : State n) →
+  small-step s (unevaluated id-lambda)
+    ≡ just ( suc n , indb n , {!!} :h: s , evaluated (ref (from-nat n)))
+  × ref-to-expr (atom "x" :h: s) (ref (from-nat n))
+    ≡ just x
+lambda-eval _ = {!!}
+
+lambda-ret-id : {n : Nat} (s : State n) →
+  small-step s (unevaluated $ (pair id-lambda x))
+    ≡ just ( suc n , indb n , atom "x" :h: s , evaluated (ref (from-nat n)))
+  × ref-to-expr (atom "x" :h: s) (ref (from-nat n))
+    ≡ just x
+lambda-ret-id _ = {!!}
