@@ -44,7 +44,7 @@ mutual
     quasiquot : Ref n → Value n
     unquot    : Ref n → Value n
     ptr       : Ref n → Value n
-    lam       : List String → List Expr → Value n
+    lam       : List String → List (Value n) → Value n
     mac       : List String → List Expr → Value n
     builtin   : Builtin → Value n
 
@@ -56,12 +56,13 @@ mutual
     match-builtin   : Builtin
 
   data PartialValue (n : Nat) : Set where
-    evaluated   : Ref n → PartialValue n
-    unevaluated : Expr → PartialValue n
-    p-fun       : PartialValues n → PartialValue n
-    p-mac       : PartialValues n → PartialValue n
-    p-pair      : PartialValue n → PartialValue n → PartialValue n
-    p-quasiquot : PartialValue n → PartialValue n
+    evaluated       : Ref n → PartialValue n
+    unevaluated     : Expr → PartialValue n
+    unevaluated-ref : Value n → PartialValue n
+    p-fun           : PartialValues n → PartialValue n
+    p-mac           : PartialValues n → PartialValue n
+    p-pair          : PartialValue n → PartialValue n → PartialValue n
+    p-quasiquot     : PartialValue n → PartialValue n
 
   PartialValues : Nat → Set
   PartialValues n = List (PartialValue n)
@@ -83,8 +84,12 @@ weaken-value-suc (quot (ref i))         = quot (ref (weaken-fin i))
 weaken-value-suc (quasiquot (ref i))    = quasiquot (ref (weaken-fin i))
 weaken-value-suc (unquot (ref i))       = unquot (ref (weaken-fin i))
 weaken-value-suc (ptr (ref i))          = ptr (ref (weaken-fin i))
-weaken-value-suc (lam x x₁)             = lam x x₁
-weaken-value-suc (mac x x₁)             = mac x x₁
+weaken-value-suc {n} (lam x es)         = lam x (map-weaken es)
+  where
+    map-weaken : List (Value n) → List (Value (suc n))
+    map-weaken []       = []
+    map-weaken (x ∷ es) = weaken-value-suc x ∷ map-weaken es
+weaken-value-suc (mac x es)             = mac x es
 weaken-value-suc (builtin x)            = builtin x
 
 weaken-value : {n m : Nat} → {p : n ≤ m} → Value n → Value m
@@ -96,6 +101,7 @@ weaken-partial-suc (evaluated (ref i)) = evaluated (ref (weaken-fin i))
 weaken-partial-suc (unevaluated e)     = unevaluated e
 weaken-partial-suc (p-pair v v₁)       = p-pair (weaken-partial-suc v) (weaken-partial-suc v₁)
 weaken-partial-suc (p-quasiquot v)     = p-quasiquot (weaken-partial-suc v)
+weaken-partial-suc (unevaluated-ref r) = unevaluated-ref (weaken-value-suc r)
 weaken-partial-suc {n} (p-fun es)      = p-fun (map-weaken es)
   where
     map-weaken : List (PartialValue n) → List (PartialValue (suc n))
@@ -222,7 +228,7 @@ lambda-builtin-impl {n} s (args ∷ body) = do
         ; _ → nothing
         }
     })) =<< extract-builtin-args n s args
-  let body = {!!}
+  let body = map (λ x → lookup x s) body
   just $ insert-value s $ lam args body
 lambda-builtin-impl _ _ = nothing
 
@@ -246,7 +252,12 @@ return-value _ = nothing
 mutual
   small-step : {n : Nat} → State n → PartialValue n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
   small-step {n} s (evaluated x) = just (n , base n , s , evaluated x)
-  small-step {n} s (unevaluated x) = small-step-expr s x
+  small-step {n} s (unevaluated x) = do
+    let _ , p , s , r = insert-expr x s
+    let v = lookup r s
+    _ , q , s , pv ← small-step-value s v
+    return $ _ , trans-less p q , s , pv
+  small-step {n} s (unevaluated-ref x) = small-step-value s x
   small-step {n} s (p-fun es) = do
     m , p , heap , all-scopes , popped-scopes , es ← case small-step-many s es of λ
       { (just (m , p , s@(state heap all-scopes@(ss ∷ sss ∷ scopes)) , es)) →
@@ -282,9 +293,11 @@ mutual
   ... | lam params body | just (o , lt-proof , s@(state heap scopes) , evaluated x) = do
           args ← extract-args s x params
           let s = state heap (args ::: scopes)
-          return $ o , lt-proof , s , p-fun (map unevaluated body)
+          let es = map (unevaluated-ref ∘ weaken-value {p = lt-proof}) body
+          return $ o , lt-proof , s , p-fun es
   ... | lam _ _ | just (o , lt-proof , s , tail) =
-          return $ o , lt-proof , s , p-pair (weaken-partial {p = lt-proof} (evaluated r)) tail
+          let head = weaken-partial {p = lt-proof} (evaluated r)
+           in return $ o , lt-proof , s , p-pair head tail
   ... | lam _ _ | nothing = nothing
   ... | mac params body | _ = do
           m , lt-proof , s@(state heap (scope ∷ scopes)) , tail ← case tail of λ
@@ -325,19 +338,27 @@ mutual
     m , p , s' , e' ← small-step s e
     return $ m , p , s' , e' ∷ map (weaken-partial {p = p}) es
 
-  small-step-expr : {n : Nat} → State n → Expr → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
-  small-step-expr {n} s (atom x) = do
+  small-step-value : {n : Nat} → State n → Value n → Maybe (Σ Nat (λ m → (n ≤ m) × State m × PartialValue m))
+  small-step-value {n} s (atom x) = do
     r ← find x s
     return $ n , base n , s , evaluated r
-  small-step-expr {n} s (number x) =
+  small-step-value {n} s (number x) =
     let m , p , s' , r = insert-expr (number x) s
      in return $ m , p , s' , evaluated r
-  small-step-expr {n} s (pair x x₁) = just (n , base n , s , p-pair (unevaluated x) (unevaluated x₁))
-  small-step-expr {n} s (quot x)    =
-    let m , p , s' , r = insert-expr x s
-     in return $ m , p , s' , evaluated r
-  small-step-expr {n} s (quasiquot x) = just (n , base n , s , p-quasiquot (unevaluated x))
-  small-step-expr {n} s (unquot x)    = nothing
+  small-step-value {n} s (pair x x₁) =
+    let l = lookup x s
+        r = lookup x₁ s
+     in just (n , base n , s , p-pair (unevaluated-ref l) (unevaluated-ref r))
+  small-step-value {n} s (quot x)    =
+    return $ n , base n , s , evaluated x
+  small-step-value {n} s (quasiquot x) =
+    let x = lookup x s
+     in return $ n , base n , s , p-quasiquot (unevaluated-ref x)
+  small-step-value {n} s (unquot x) = nothing
+  small-step-value {n} s (ptr r) = just $ n , base n , s , evaluated r
+  small-step-value {n} s v@(lam as es) = just $ n , base n , s , evaluated {!!}
+  small-step-value s (mac as es) = {!!}
+  small-step-value s (builtin b) = {!!}
 
 new-heap : Heap 5
 new-heap =
@@ -363,7 +384,7 @@ new-state = state new-heap (new-scope ∷ [])
 
 eval : Nat → Expr → Maybe Expr
 eval fuel expr = do
-  n , _ , s , pv ← small-step-expr new-state expr
+  n , _ , s , pv ← small-step-value new-state {!!}
   _ , _ , s , e  ← do-steps {n} fuel s pv
   r              ← is-evaluated e
   value-to-expr fuel s (lookup r s)
